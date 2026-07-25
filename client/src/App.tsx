@@ -10,6 +10,7 @@ const Campaigns = lazy(() => import("./pages/Campaigns"));
 const CampaignDetail = lazy(() => import("./pages/CampaignDetail"));
 const Candidates = lazy(() => import("./pages/Candidates"));
 const CandidateDetail = lazy(() => import("./pages/CandidateDetail"));
+const DataQuality = lazy(() => import("./pages/DataQuality"));
 const Messages = lazy(() => import("./pages/Messages"));
 const PlatformConnections = lazy(() => import("./pages/PlatformConnections"));
 const QueueMonitor = lazy(() => import("./pages/QueueMonitor"));
@@ -32,6 +33,7 @@ function Router() {
         <Route path="/campaigns" component={Campaigns} />
         <Route path="/candidates/:id" component={CandidateDetail} />
         <Route path="/candidates" component={Candidates} />
+        <Route path="/data-quality" component={DataQuality} />
         <Route path="/messages" component={Messages} />
         <Route path="/responses" component={ResponseInbox} />
         <Route path="/follow-ups" component={FollowUpQueue} />

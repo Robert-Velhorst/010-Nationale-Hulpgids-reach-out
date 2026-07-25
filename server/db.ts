@@ -1124,6 +1124,207 @@ export async function getUserCandidates(userId: number) {
   }));
 }
 
+const CANDIDATE_DATA_QUALITY_FIELDS = [
+  "email",
+  "phone",
+  "profileUrl",
+  "location",
+  "experience",
+  "services",
+  "availability",
+  "hourlyRate",
+  "bio",
+] as const;
+
+type CandidateDataQualityField = (typeof CANDIDATE_DATA_QUALITY_FIELDS)[number];
+
+type CandidateDataQualityMetricRow = {
+  platformId: number;
+  platformName: string;
+  totalCandidates: unknown;
+  directContactCandidates: unknown;
+} & Record<CandidateDataQualityField, unknown>;
+
+export type CandidateDataQualitySummary = {
+  totalCandidates: number;
+  directContactCandidates: number;
+  averageCompleteness: number;
+  fields: Record<CandidateDataQualityField, number>;
+  platforms: Array<{
+    platformId: number;
+    platformName: string;
+    totalCandidates: number;
+    directContactCandidates: number;
+    completeness: number;
+    fields: Record<CandidateDataQualityField, number>;
+  }>;
+};
+
+function toMetricNumber(value: unknown) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function hasCandidateDataValue(value: unknown) {
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value === "number") return Number.isFinite(value);
+  return value !== null && value !== undefined;
+}
+
+function buildCandidateDataQualitySummary(
+  rows: CandidateDataQualityMetricRow[]
+): CandidateDataQualitySummary {
+  const totalCandidates = rows.reduce(
+    (total, row) => total + toMetricNumber(row.totalCandidates),
+    0
+  );
+  const directContactCandidates = rows.reduce(
+    (total, row) => total + toMetricNumber(row.directContactCandidates),
+    0
+  );
+  const fields = Object.fromEntries(
+    CANDIDATE_DATA_QUALITY_FIELDS.map(field => [
+      field,
+      rows.reduce((total, row) => total + toMetricNumber(row[field]), 0),
+    ])
+  ) as Record<CandidateDataQualityField, number>;
+  const populatedFieldValues = CANDIDATE_DATA_QUALITY_FIELDS.reduce(
+    (total, field) => total + fields[field],
+    0
+  );
+
+  return {
+    totalCandidates,
+    directContactCandidates,
+    averageCompleteness:
+      totalCandidates === 0
+        ? 0
+        : Math.round(
+            (populatedFieldValues /
+              (totalCandidates * CANDIDATE_DATA_QUALITY_FIELDS.length)) *
+              100
+          ),
+    fields,
+    platforms: rows
+      .map(row => {
+        const platformTotal = toMetricNumber(row.totalCandidates);
+        const platformFields = Object.fromEntries(
+          CANDIDATE_DATA_QUALITY_FIELDS.map(field => [
+            field,
+            toMetricNumber(row[field]),
+          ])
+        ) as Record<CandidateDataQualityField, number>;
+        const platformPopulatedFieldValues =
+          CANDIDATE_DATA_QUALITY_FIELDS.reduce(
+            (total, field) => total + platformFields[field],
+            0
+          );
+
+        return {
+          platformId: row.platformId,
+          platformName: row.platformName,
+          totalCandidates: platformTotal,
+          directContactCandidates: toMetricNumber(row.directContactCandidates),
+          completeness:
+            platformTotal === 0
+              ? 0
+              : Math.round(
+                  (platformPopulatedFieldValues /
+                    (platformTotal * CANDIDATE_DATA_QUALITY_FIELDS.length)) *
+                    100
+                ),
+          fields: platformFields,
+        };
+      })
+      .sort((left, right) => right.totalCandidates - left.totalCandidates),
+  };
+}
+
+export async function getCandidateDataQualitySummary(
+  userId: number
+): Promise<CandidateDataQualitySummary> {
+  const db = await getDb();
+
+  if (!db) {
+    const store = getLocalStore();
+    const campaignIds = new Set(
+      store.campaigns
+        .filter(campaign => campaign.userId === userId)
+        .map(campaign => campaign.id)
+    );
+    const metricsByPlatformId = new Map<
+      number,
+      CandidateDataQualityMetricRow
+    >();
+
+    for (const candidate of store.candidates) {
+      if (!campaignIds.has(candidate.campaignId)) continue;
+      const platform = store.platforms.find(
+        entry => entry.id === candidate.platformId
+      );
+      if (!platform) continue;
+
+      const metrics =
+        metricsByPlatformId.get(platform.id) ??
+        ({
+          platformId: platform.id,
+          platformName: platform.name,
+          totalCandidates: 0,
+          directContactCandidates: 0,
+          ...Object.fromEntries(
+            CANDIDATE_DATA_QUALITY_FIELDS.map(field => [field, 0])
+          ),
+        } as CandidateDataQualityMetricRow);
+      metrics.totalCandidates = toMetricNumber(metrics.totalCandidates) + 1;
+      if (
+        hasCandidateDataValue(candidate.email) ||
+        hasCandidateDataValue(candidate.phone)
+      ) {
+        metrics.directContactCandidates =
+          toMetricNumber(metrics.directContactCandidates) + 1;
+      }
+      for (const field of CANDIDATE_DATA_QUALITY_FIELDS) {
+        if (hasCandidateDataValue(candidate[field])) {
+          metrics[field] = toMetricNumber(metrics[field]) + 1;
+        }
+      }
+      metricsByPlatformId.set(platform.id, metrics);
+    }
+
+    return buildCandidateDataQualitySummary(
+      Array.from(metricsByPlatformId.values())
+    );
+  }
+
+  const nonEmptyTextMetric = (column: any) =>
+    sql<number>`sum(case when ${column} is not null and trim(${column}) <> '' then 1 else 0 end)`;
+  const rows = await db
+    .select({
+      platformId: platforms.id,
+      platformName: platforms.name,
+      totalCandidates: sql<number>`count(*)`,
+      directContactCandidates: sql<number>`sum(case when (${candidates.email} is not null and trim(${candidates.email}) <> '') or (${candidates.phone} is not null and trim(${candidates.phone}) <> '') then 1 else 0 end)`,
+      email: nonEmptyTextMetric(candidates.email),
+      phone: nonEmptyTextMetric(candidates.phone),
+      profileUrl: nonEmptyTextMetric(candidates.profileUrl),
+      location: nonEmptyTextMetric(candidates.location),
+      experience: nonEmptyTextMetric(candidates.experience),
+      services: nonEmptyTextMetric(candidates.services),
+      availability: nonEmptyTextMetric(candidates.availability),
+      hourlyRate: sql<number>`sum(case when ${candidates.hourlyRate} is not null then 1 else 0 end)`,
+      bio: nonEmptyTextMetric(candidates.bio),
+    })
+    .from(candidates)
+    .innerJoin(campaigns, eq(candidates.campaignId, campaigns.id))
+    .innerJoin(platforms, eq(candidates.platformId, platforms.id))
+    .where(eq(campaigns.userId, userId))
+    .groupBy(platforms.id, platforms.name);
+
+  return buildCandidateDataQualitySummary(
+    rows as CandidateDataQualityMetricRow[]
+  );
+}
+
 export async function searchUserCandidatePickerOptions(
   userId: number,
   options?: {

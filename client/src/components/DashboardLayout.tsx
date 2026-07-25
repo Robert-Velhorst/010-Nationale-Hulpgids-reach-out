@@ -23,6 +23,7 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   ClipboardList,
+  Database,
   HelpCircle,
   History,
   Inbox,
@@ -44,6 +45,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Target, label: "Campaigns", path: "/campaigns" },
   { icon: Users, label: "Candidates", path: "/candidates" },
+  { icon: Database, label: "Data quality", path: "/data-quality" },
   { icon: MessageSquare, label: "Messages", path: "/messages" },
   { icon: Inbox, label: "Responses", path: "/responses" },
   { icon: History, label: "Follow-ups", path: "/follow-ups" },

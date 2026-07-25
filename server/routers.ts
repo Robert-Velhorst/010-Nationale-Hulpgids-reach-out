@@ -1688,6 +1688,10 @@ export const appRouter = router({
         });*/
       }),
 
+    dataQuality: protectedProcedure.query(async ({ ctx }) => {
+      return db.getCandidateDataQualitySummary(ctx.user.id);
+    }),
+
     getDuplicates: protectedProcedure.query(async ({ ctx }) => {
       return db.getCandidateDuplicateGroups(ctx.user.id);
     }),
