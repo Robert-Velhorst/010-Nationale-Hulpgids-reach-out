@@ -1,6 +1,6 @@
 # Security, Resource, and Feature Review
 
-Review date: 2026-05-24
+Review dates: 2026-05-24 through 2026-08-09
 
 ## Security Findings Fixed
 
@@ -17,7 +17,7 @@ Review date: 2026-05-24
 - Automated regression tests now cover credential redaction, hosted-production session secret fail-closed behavior, and blocked desktop/ngrok exposure.
 - Hosted production session signing and credential encryption now reject short secret values instead of accepting weak `JWT_SECRET` or `CREDENTIAL_ENCRYPTION_KEY` settings.
 - Hosted production/ngrok startup now validates OAuth app id, HTTPS OAuth server URL, strong session secret, and ngrok token before listening.
-- The Windows desktop launcher now waits for `/api/health` before opening the dashboard, times out failed startup attempts, and shows a redacted recent server log tail instead of leaving the user on an indefinite loading screen.
+- The Windows desktop launcher now waits for `/api/readiness` before opening the dashboard, times out failed startup attempts, and shows a redacted recent server log tail instead of leaving the user on an indefinite loading screen.
 - Audit/event persistence now centrally redacts secret-like strings inside JSON and plain-text audit state before storage, and ledger exports apply the same value-level redaction in addition to key-based redaction.
 - Audit payloads for duplicate merges, response reclassification, follow-up skips, and credential saves now store bounded metadata instead of copying free-text reasons, full candidate identity context, profile URLs, phone numbers, or full credential emails into the audit trail.
 - OAuth callback state decoding now validates base64 format, URL safety, protocol, callback path, local-only HTTP usage, and callback host before token exchange; malformed states return explicit 400 errors instead of collapsing to 500.
@@ -26,6 +26,11 @@ Review date: 2026-05-24
 - Scraper logs now summarize search criteria by presence/counts and record only target host plus stable URL hashes instead of raw care terms, locations, profile paths, emails, or query strings.
 - Express now trusts proxy headers only from loopback, reducing spoofed forwarded-proto risk while preserving ngrok/local reverse-proxy behavior.
 - Scheduled campaign execution now uses a bounded per-tick batch size and skips overlapping runs, reducing scheduler churn during load spikes.
+- Hosted startup now requires durable database storage and a dedicated credential-encryption key.
+- Browser responses now include CSP/clickjacking/cross-origin hardening, and unsafe browser methods require a matching origin host.
+- Liveness and readiness are separate; readiness checks hosted configuration and database connectivity.
+- Per-user emergency-stop state blocks consequential API and scheduler paths.
+- Privacy export/delete and support diagnostics are available without exposing stored secret values.
 
 ## Remaining Security Work
 
@@ -38,8 +43,12 @@ Review date: 2026-05-24
 ## Resource Usage Improvements Applied
 
 - Vite is no longer loaded in production, ngrok, or packaged app runs.
+- Legacy development telemetry plugins and 69 unused dependency packages were removed; production dependency audit is clean and the only remaining full-toolchain advisory is a low-severity unpublished Babel fix.
+- The HAI connector is opt-in, token-protected, aggregate-only, bounded to 100 campaigns, audited, and excludes candidate PII and message or credential content.
 - Server startup now rejects invalid `PORT` values and logs ngrok startup errors through a handled promise path.
-- The desktop app launches one local server process and waits for it instead of requiring a separate terminal.
+- The desktop app embeds the local HTTP runtime in Electron's main process and waits for readiness, avoiding a redundant process and the disabled RunAsNode fuse path.
+- Production server dependencies are split-bundled while Crawlee, Vite, ngrok, and native adapters stay lazy/external; the loaded-host cold start improved from about 210 seconds to 11.38 seconds.
+- Docker context exclusions reduced the final context from 816 MB to 2.69 MB by omitting installer, package-manager, QA, and browser caches.
 - Queue concurrency is configurable and defaults to conservative values.
 - Audio transcription now streams downloads and enforces a hard 16MB file-size cap before full payload creation.
 - Scraper request count is configurable and defaults to a smaller batch.
@@ -48,7 +57,7 @@ Review date: 2026-05-24
 - LLM response token defaults were reduced to avoid oversized responses and unnecessary latency.
 - Static assets are served with caching headers.
 - Vitest local-store data now defaults to `.test-local-data` instead of sharing desktop QA data, keeping repeated test runs from slowing down against accumulated app state.
-- The lightweight `/api/health` endpoint exposes only readiness, runtime mode, uptime, and timestamp, giving the installer/desktop shell a cheap readiness probe without exposing secrets or ledger data.
+- The lightweight `/api/health` endpoint exposes only liveness, runtime mode, uptime, and timestamp. `/api/readiness` separately checks deployment configuration and hosted database connectivity.
 - The dashboard Queue Health panel now uses one bounded health query instead of two separate stat calls and includes recent durable activity/error summaries for restart-safe operational visibility.
 - Queue Monitor now supports owner-scoped cancellation for waiting/delayed durable queue jobs, records a medium-risk audit event, and redacts sensitive-looking cancellation notes.
 - Active discovery jobs now support cooperative cancellation requests: the worker checks safe checkpoints, records `cancelled` instead of retrying or completing, and avoids misclassifying user cancellation as scraper failure.

@@ -19,8 +19,9 @@ The generated `.exe` installer is written to `release/`.
 
 The installed desktop app starts its own private local server on `127.0.0.1`, stores app data in the Windows user data folder, and creates its own local secrets on first launch. It does not require a database or OAuth login for local desktop use.
 
-On launch, the desktop shell waits for the local `/api/health` endpoint before
-opening the dashboard. If the bundled server fails to start or never becomes
+On launch, the desktop shell waits for the local `/api/readiness` endpoint before
+opening the dashboard. The local HTTP runtime is embedded in Electron's main
+process, so the app does not keep a redundant server process. If it fails to start or never becomes
 ready, the app shows a failure dialog with a short redacted server log tail so
 the operator is not left on an indefinite loading screen.
 
@@ -54,12 +55,14 @@ pnpm build
 set NGROK_AUTHTOKEN=your-ngrok-token
 set JWT_SECRET=a-long-random-secret-at-least-32-characters
 set CREDENTIAL_ENCRYPTION_KEY=a-long-random-secret-at-least-32-characters
+set DATABASE_URL=mysql://user:password@host/database
 set VITE_APP_ID=your-manus-app-id
 set OAUTH_SERVER_URL=https://your-oauth-server.example
 pnpm start:ngrok
 ```
 
-Hosted production/ngrok startup validates these settings before listening.
+Hosted production/ngrok startup validates these settings before listening and
+requires durable MySQL storage. It never falls back to the desktop JSON store.
 `JWT_SECRET` and `CREDENTIAL_ENCRYPTION_KEY` must be unique long random
 values, and `OAUTH_SERVER_URL` must be an HTTPS URL that matches the configured
 Manus OAuth environment.

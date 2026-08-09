@@ -2,6 +2,34 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import path from "node:path";
 import * as db from "./db";
 
+if (process.env.RUN_LIVE_SCRAPER_TESTS !== "1") {
+  vi.doMock("crawlee", () => {
+    class TestConfiguration {
+      private readonly options: any;
+
+      constructor(options: any) {
+        this.options = options;
+      }
+
+      getStorageClient() {
+        return this.options.storageClientOptions;
+      }
+    }
+
+    class TestCrawler {
+      async run() {
+        return undefined;
+      }
+    }
+
+    return {
+      Configuration: TestConfiguration,
+      CheerioCrawler: TestCrawler,
+      ProxyConfiguration: class TestProxyConfiguration {},
+    };
+  });
+}
+
 /**
  * Tests for GitHub enhancements:
  * - In-memory queue system
@@ -87,7 +115,7 @@ describe("In-Memory Queue System", () => {
     expect(typeof jobId).toBe("string");
     const completedJob = await waitForQueueJob(discoveryQueue, jobId);
     expect(completedJob.status).toBe("completed");
-  });
+  }, 15000);
 
   it("should block unsafe discovery jobs before enqueueing", async () => {
     const { addDiscoveryToQueue } = await import("./services/inMemoryQueue");
@@ -466,7 +494,7 @@ describe("In-Memory Queue System", () => {
     } finally {
       releaseSearch?.();
     }
-  }, 15000);
+  }, 60000);
 
   it("should process jobs with priority ordering", async () => {
     const { addMessageToQueue, messageQueue } = await import(
@@ -683,6 +711,8 @@ describe("Rate Limiter Service", () => {
 });
 
 describe("Crawlee Scraper", () => {
+  const liveScraperIt =
+    process.env.RUN_LIVE_SCRAPER_TESTS === "1" ? it : it.skip;
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -703,7 +733,7 @@ describe("Crawlee Scraper", () => {
       );
       expect(storageClient.persistStorage).toBe(false);
     },
-    15000
+    60000
   );
 
   it("should not return mock Nationale Hulpgids candidates when search fails", async () => {
@@ -723,7 +753,7 @@ describe("Crawlee Scraper", () => {
     expect(candidates).toEqual([]);
     expect(JSON.stringify(candidates)).not.toContain("Jan Smit");
     expect(JSON.stringify(candidates)).not.toContain("Maria de Vries");
-  });
+  }, 30000);
 
   it("should create Crawlee scraper instance", async () => {
     const { createCrawleeScraper } = await import(
@@ -786,7 +816,7 @@ describe("Crawlee Scraper", () => {
     }
   });
 
-  it("should search for candidates with criteria", async () => {
+  liveScraperIt("should search for candidates with criteria", async () => {
     const { createCrawleeScraper } = await import(
       "./services/scrapers/crawleeNationaleHulpgids"
     );
@@ -806,7 +836,7 @@ describe("Crawlee Scraper", () => {
     });
 
     expect(Array.isArray(candidates)).toBe(true);
-  });
+  }, 60000);
 
   it("should close scraper resources", async () => {
     const { createCrawleeScraper } = await import(

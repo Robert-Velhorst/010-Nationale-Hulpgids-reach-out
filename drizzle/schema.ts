@@ -32,6 +32,18 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+/** Per-user operational safety and retention controls. */
+export const userOperatorControls = mysqlTable("userOperatorControls", {
+  userId: int("userId")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  outreachPaused: int("outreachPaused").default(0).notNull(),
+  pauseReason: text("pauseReason"),
+  retentionDays: int("retentionDays").default(365).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 // Multi-platform reach-out tool tables
 
 /** Supported platforms for candidate discovery and outreach */
@@ -528,3 +540,4 @@ export type RateLimitEvent = typeof rateLimitEvents.$inferSelect;
 export type CredentialEvent = typeof credentialEvents.$inferSelect;
 export type AuditEvent = typeof auditEvents.$inferSelect;
 export type MessageSnippet = typeof messageSnippets.$inferSelect;
+export type UserOperatorControl = typeof userOperatorControls.$inferSelect;

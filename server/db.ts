@@ -27,6 +27,7 @@ import {
   credentialEvents,
   auditEvents,
   messageSnippets,
+  userOperatorControls,
   Platform,
   Campaign,
   Candidate,
@@ -47,6 +48,7 @@ import {
   CredentialEvent,
   AuditEvent,
   MessageSnippet,
+  UserOperatorControl,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { getPlatformCapability } from "./services/platformCapabilities";
@@ -174,6 +176,7 @@ type LocalStore = {
   credentialEvents: CredentialEvent[];
   auditEvents: AuditEvent[];
   messageSnippets: MessageSnippet[];
+  userOperatorControls: UserOperatorControl[];
   nextIds: {
     user: number;
     campaign: number;
@@ -274,6 +277,7 @@ function createEmptyLocalStore(): LocalStore {
     credentialEvents: [],
     auditEvents: [],
     messageSnippets: [],
+    userOperatorControls: [],
     nextIds: {
       user: 1,
       campaign: 1,
@@ -970,7 +974,11 @@ async function getCandidateDuplicateListSummariesByCandidateId(
 
     const candidateMatches =
       duplicateMatchesByCandidateId.get(candidateId) ?? new Map();
-    if (resolvedPairKeys.has(candidateDuplicatePairKey(candidateId, otherCandidateId))) {
+    if (
+      resolvedPairKeys.has(
+        candidateDuplicatePairKey(candidateId, otherCandidateId)
+      )
+    ) {
       return;
     }
     const match = candidateMatches.get(otherCandidateId) ?? {
@@ -2039,9 +2047,11 @@ export async function getMessageReviewPage(
 
     return {
       items: matchingMessages.slice(offset, offset + limit).map(message => {
-        const latestCandidateResponse = store.candidateResponses
-          .filter(response => response.candidateId === message.candidateId)
-          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null;
+        const latestCandidateResponse =
+          store.candidateResponses
+            .filter(response => response.candidateId === message.candidateId)
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ??
+          null;
 
         return {
           ...message,
@@ -2070,7 +2080,8 @@ export async function getMessageReviewPage(
   if (campaignId) conditions.push(eq(messages.campaignId, campaignId));
 
   const statusCountConditions: any[] = [eq(campaigns.userId, userId)];
-  if (campaignId) statusCountConditions.push(eq(messages.campaignId, campaignId));
+  if (campaignId)
+    statusCountConditions.push(eq(messages.campaignId, campaignId));
 
   const [countRows, statusRows, rows] = await Promise.all([
     db
@@ -3668,13 +3679,16 @@ export async function getFollowUpSuggestions(
       .filter(message => !message.respondedAt)
       .map(message => ({
         message,
-        lastContactAt: message.deliveredAt ?? message.sentAt ?? message.updatedAt,
+        lastContactAt:
+          message.deliveredAt ?? message.sentAt ?? message.updatedAt,
       }))
       .filter(entry => entry.lastContactAt <= cutoff)
       .filter(entry => !responsesByCandidateId.has(entry.message.candidateId))
       .filter(entry => {
         return !store.followUps
-          .filter(followUp => followUp.candidateId === entry.message.candidateId)
+          .filter(
+            followUp => followUp.candidateId === entry.message.candidateId
+          )
           .filter(followUp => activeFollowUpStatuses.has(followUp.status))
           .some(followUp => {
             if (!followUp.messageId) return true;
@@ -3725,7 +3739,11 @@ export async function getFollowUpSuggestions(
               }
             : null,
           campaign: campaign
-            ? { id: campaign.id, title: campaign.title, status: campaign.status }
+            ? {
+                id: campaign.id,
+                title: campaign.title,
+                status: campaign.status,
+              }
             : null,
           platform: platform ? { id: platform.id, name: platform.name } : null,
           message: {
@@ -4489,4 +4507,399 @@ export async function getCampaignStats(campaignId: number) {
     messagesSent: messagesSent[0]?.count || 0,
     responsesReceived: responsesReceived[0]?.count || 0,
   };
+}
+
+const DEFAULT_OPERATOR_CONTROL = {
+  outreachPaused: 0,
+  pauseReason: null,
+  retentionDays: 365,
+} as const;
+
+export async function getUserOperatorControl(
+  userId: number
+): Promise<UserOperatorControl> {
+  const dbInstance = await getDb();
+  if (!dbInstance) {
+    const store = getLocalStore();
+    const stored = store.userOperatorControls.find(
+      control => control.userId === userId
+    );
+    if (stored) return stored;
+    const now = new Date();
+    const created = {
+      userId,
+      ...DEFAULT_OPERATOR_CONTROL,
+      createdAt: now,
+      updatedAt: now,
+    };
+    store.userOperatorControls.push(created);
+    persistLocalStore();
+    return created;
+  }
+
+  const [stored] = await dbInstance
+    .select()
+    .from(userOperatorControls)
+    .where(eq(userOperatorControls.userId, userId))
+    .limit(1);
+  if (stored) return stored;
+  const now = new Date();
+  const created = {
+    userId,
+    ...DEFAULT_OPERATOR_CONTROL,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await dbInstance
+    .insert(userOperatorControls)
+    .values(created)
+    .onDuplicateKeyUpdate({ set: { userId } });
+  const [persisted] = await dbInstance
+    .select()
+    .from(userOperatorControls)
+    .where(eq(userOperatorControls.userId, userId))
+    .limit(1);
+  return persisted ?? created;
+}
+
+export async function updateUserOperatorControl(input: {
+  userId: number;
+  outreachPaused: boolean;
+  pauseReason?: string | null;
+  retentionDays?: number;
+}): Promise<UserOperatorControl> {
+  const now = new Date();
+  const current = await getUserOperatorControl(input.userId);
+  const next: UserOperatorControl = {
+    ...current,
+    outreachPaused: input.outreachPaused ? 1 : 0,
+    pauseReason: input.outreachPaused
+      ? (input.pauseReason?.trim() ?? null)
+      : null,
+    retentionDays: input.retentionDays ?? current.retentionDays,
+    updatedAt: now,
+  };
+  const dbInstance = await getDb();
+  if (!dbInstance) {
+    const store = getLocalStore();
+    const index = store.userOperatorControls.findIndex(
+      control => control.userId === input.userId
+    );
+    if (index >= 0) store.userOperatorControls[index] = next;
+    else store.userOperatorControls.push(next);
+    persistLocalStore();
+    return next;
+  }
+
+  await dbInstance
+    .insert(userOperatorControls)
+    .values(next)
+    .onDuplicateKeyUpdate({
+      set: {
+        outreachPaused: next.outreachPaused,
+        pauseReason: next.pauseReason,
+        retentionDays: next.retentionDays,
+        updatedAt: now,
+      },
+    });
+  return next;
+}
+
+function sanitizeCredentialForExport(credential: PlatformCredential) {
+  const {
+    encryptedPassword: _encryptedPassword,
+    apiKey: _apiKey,
+    sessionData: _sessionData,
+    ...safeCredential
+  } = credential;
+  return {
+    ...safeCredential,
+    hasPassword: Boolean(credential.encryptedPassword),
+    hasApiKey: Boolean(credential.apiKey),
+    hasSessionData: Boolean(credential.sessionData),
+  };
+}
+
+export async function exportUserData(userId: number) {
+  const [campaignRows, candidateRows, messageRows, credentialRows, control] =
+    await Promise.all([
+      getUserCampaigns(userId),
+      getUserCandidates(userId),
+      getAllMessages(userId),
+      getUserPlatformCredentials(userId),
+      getUserOperatorControl(userId),
+    ]);
+  const dbInstance = await getDb();
+  const store = dbInstance ? null : getLocalStore();
+  const userRows = dbInstance
+    ? await dbInstance.select().from(users).where(eq(users.id, userId))
+    : store!.users.filter(user => user.id === userId);
+  const auditRows = dbInstance
+    ? await dbInstance
+        .select()
+        .from(auditEvents)
+        .where(eq(auditEvents.userId, userId))
+    : store!.auditEvents.filter(event => event.userId === userId);
+  const queueRows = dbInstance
+    ? await dbInstance
+        .select()
+        .from(queueJobRecords)
+        .where(eq(queueJobRecords.userId, userId))
+    : store!.queueJobRecords.filter(job => job.userId === userId);
+  const responseRows = await getCandidateResponsesForUser(userId);
+  const campaignIds = campaignRows.map(campaign => campaign.id);
+  const candidateIds = candidateRows.map(candidate => candidate.id);
+  const identityRows = dbInstance
+    ? await dbInstance
+        .select()
+        .from(candidateIdentities)
+        .where(eq(candidateIdentities.userId, userId))
+    : store!.candidateIdentities.filter(identity => identity.userId === userId);
+  const identityIds = identityRows.map(identity => identity.id);
+  const [
+    matchFactorRows,
+    followUpRows,
+    sourceRows,
+    readinessRows,
+    approvalRows,
+    sendAttemptRows,
+    qualificationRows,
+    duplicateResolutionRows,
+    rateLimitRows,
+    credentialEventRows,
+    snippetRows,
+  ] = dbInstance
+    ? await Promise.all([
+        candidateIds.length
+          ? dbInstance
+              .select()
+              .from(matchFactors)
+              .where(inArray(matchFactors.candidateId, candidateIds))
+          : Promise.resolve([] as MatchFactor[]),
+        campaignIds.length
+          ? dbInstance
+              .select()
+              .from(followUps)
+              .where(inArray(followUps.campaignId, campaignIds))
+          : Promise.resolve([] as FollowUp[]),
+        identityIds.length
+          ? dbInstance
+              .select()
+              .from(candidateSources)
+              .where(inArray(candidateSources.candidateIdentityId, identityIds))
+          : Promise.resolve([] as CandidateSource[]),
+        dbInstance
+          .select()
+          .from(campaignReadinessChecks)
+          .where(eq(campaignReadinessChecks.userId, userId)),
+        dbInstance
+          .select()
+          .from(messageApprovals)
+          .where(eq(messageApprovals.userId, userId)),
+        campaignIds.length
+          ? dbInstance
+              .select()
+              .from(messageSendAttempts)
+              .where(inArray(messageSendAttempts.campaignId, campaignIds))
+          : Promise.resolve([] as MessageSendAttempt[]),
+        dbInstance
+          .select()
+          .from(candidateQualificationDecisions)
+          .where(eq(candidateQualificationDecisions.userId, userId)),
+        dbInstance
+          .select()
+          .from(candidateDuplicateResolutions)
+          .where(eq(candidateDuplicateResolutions.userId, userId)),
+        dbInstance
+          .select()
+          .from(rateLimitEvents)
+          .where(eq(rateLimitEvents.userId, userId)),
+        dbInstance
+          .select()
+          .from(credentialEvents)
+          .where(eq(credentialEvents.userId, userId)),
+        dbInstance
+          .select()
+          .from(messageSnippets)
+          .where(eq(messageSnippets.userId, userId)),
+      ])
+    : [
+        store!.matchFactors.filter(factor =>
+          candidateIds.includes(factor.candidateId)
+        ),
+        store!.followUps.filter(followUp =>
+          campaignIds.includes(followUp.campaignId)
+        ),
+        store!.candidateSources.filter(source =>
+          identityIds.includes(source.candidateIdentityId)
+        ),
+        store!.campaignReadinessChecks.filter(check => check.userId === userId),
+        store!.messageApprovals.filter(approval => approval.userId === userId),
+        store!.messageSendAttempts.filter(attempt =>
+          campaignIds.includes(attempt.campaignId)
+        ),
+        store!.candidateQualificationDecisions.filter(
+          decision => decision.userId === userId
+        ),
+        store!.candidateDuplicateResolutions.filter(
+          resolution => resolution.userId === userId
+        ),
+        store!.rateLimitEvents.filter(event => event.userId === userId),
+        store!.credentialEvents.filter(event => event.userId === userId),
+        store!.messageSnippets.filter(snippet => snippet.userId === userId),
+      ];
+
+  return {
+    format: "nationale-hulpgids-user-export",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    scope: "current-user",
+    credentials: "Secret values, encrypted values, and sessions are excluded.",
+    user: userRows[0] ?? null,
+    operatorControl: control,
+    campaigns: campaignRows,
+    candidates: candidateRows,
+    messages: messageRows,
+    platformCredentials: credentialRows.map(sanitizeCredentialForExport),
+    matchFactors: matchFactorRows,
+    responses: responseRows,
+    followUps: followUpRows,
+    candidateIdentities: identityRows,
+    candidateSources: sourceRows,
+    campaignReadinessChecks: readinessRows,
+    messageApprovals: approvalRows,
+    messageSendAttempts: sendAttemptRows,
+    candidateQualificationDecisions: qualificationRows,
+    candidateDuplicateResolutions: duplicateResolutionRows,
+    queueJobs: queueRows,
+    rateLimitEvents: rateLimitRows,
+    credentialEvents: credentialEventRows,
+    auditEvents: auditRows,
+    messageSnippets: snippetRows,
+    counts: {
+      campaigns: campaignRows.length,
+      candidates: candidateRows.length,
+      messages: messageRows.length,
+      platformCredentials: credentialRows.length,
+      matchFactors: matchFactorRows.length,
+      responses: responseRows.length,
+      followUps: followUpRows.length,
+      candidateIdentities: identityRows.length,
+      candidateSources: sourceRows.length,
+      campaignReadinessChecks: readinessRows.length,
+      messageApprovals: approvalRows.length,
+      messageSendAttempts: sendAttemptRows.length,
+      candidateQualificationDecisions: qualificationRows.length,
+      candidateDuplicateResolutions: duplicateResolutionRows.length,
+      queueJobs: queueRows.length,
+      rateLimitEvents: rateLimitRows.length,
+      credentialEvents: credentialEventRows.length,
+      auditEvents: auditRows.length,
+      messageSnippets: snippetRows.length,
+    },
+  };
+}
+
+export async function deleteUserData(userId: number) {
+  const dbInstance = await getDb();
+  if (dbInstance) {
+    const result = await dbInstance.delete(users).where(eq(users.id, userId));
+    return { deleted: true, mode: "database" as const, result };
+  }
+
+  const store = getLocalStore();
+  const campaignIds = new Set(
+    store.campaigns
+      .filter(campaign => campaign.userId === userId)
+      .map(campaign => campaign.id)
+  );
+  const candidateIds = new Set(
+    store.candidates
+      .filter(candidate => campaignIds.has(candidate.campaignId))
+      .map(candidate => candidate.id)
+  );
+  const messageIds = new Set(
+    store.messages
+      .filter(
+        message =>
+          campaignIds.has(message.campaignId) ||
+          candidateIds.has(message.candidateId)
+      )
+      .map(message => message.id)
+  );
+  const identityIds = new Set(
+    store.candidateIdentities
+      .filter(identity => identity.userId === userId)
+      .map(identity => identity.id)
+  );
+
+  store.users = store.users.filter(user => user.id !== userId);
+  store.campaigns = store.campaigns.filter(
+    campaign => !campaignIds.has(campaign.id)
+  );
+  store.candidates = store.candidates.filter(
+    candidate => !candidateIds.has(candidate.id)
+  );
+  store.messages = store.messages.filter(
+    message => !messageIds.has(message.id)
+  );
+  store.platformCredentials = store.platformCredentials.filter(
+    credential => credential.userId !== userId
+  );
+  store.matchFactors = store.matchFactors.filter(
+    factor => !candidateIds.has(factor.candidateId)
+  );
+  store.followUps = store.followUps.filter(
+    followUp =>
+      !campaignIds.has(followUp.campaignId) &&
+      !candidateIds.has(followUp.candidateId)
+  );
+  store.candidateIdentities = store.candidateIdentities.filter(
+    identity => identity.userId !== userId
+  );
+  store.candidateSources = store.candidateSources.filter(
+    source =>
+      !identityIds.has(source.candidateIdentityId) &&
+      !candidateIds.has(source.candidateId)
+  );
+  store.campaignReadinessChecks = store.campaignReadinessChecks.filter(
+    check => check.userId !== userId
+  );
+  store.messageApprovals = store.messageApprovals.filter(
+    approval => approval.userId !== userId
+  );
+  store.messageSendAttempts = store.messageSendAttempts.filter(
+    attempt => !messageIds.has(attempt.messageId)
+  );
+  store.candidateResponses = store.candidateResponses.filter(
+    response => !candidateIds.has(response.candidateId)
+  );
+  store.candidateQualificationDecisions =
+    store.candidateQualificationDecisions.filter(
+      decision => decision.userId !== userId
+    );
+  store.candidateDuplicateResolutions =
+    store.candidateDuplicateResolutions.filter(
+      resolution => resolution.userId !== userId
+    );
+  store.queueJobRecords = store.queueJobRecords.filter(
+    job => job.userId !== userId
+  );
+  store.rateLimitEvents = store.rateLimitEvents.filter(
+    event => event.userId !== userId
+  );
+  store.credentialEvents = store.credentialEvents.filter(
+    event => event.userId !== userId
+  );
+  store.auditEvents = store.auditEvents.filter(
+    event => event.userId !== userId
+  );
+  store.messageSnippets = store.messageSnippets.filter(
+    snippet => snippet.userId !== userId
+  );
+  store.userOperatorControls = store.userOperatorControls.filter(
+    control => control.userId !== userId
+  );
+  persistLocalStore();
+  return { deleted: true, mode: "local" as const };
 }

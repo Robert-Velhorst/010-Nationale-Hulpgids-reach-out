@@ -2,6 +2,7 @@ import {
   assertHostedProductionSecret,
   isLocalDesktopMode,
 } from "./secretPolicy";
+import { assertHaiConnectorConfiguration } from "../integrations/haiConnector";
 
 export type DeploymentConfigValidationResult =
   | { status: "local-or-development" }
@@ -34,6 +35,7 @@ function requireHttpsUrl(name: string, purpose: string) {
 }
 
 export function validateDeploymentConfig(): DeploymentConfigValidationResult {
+  assertHaiConnectorConfiguration();
   if (process.env.NODE_ENV !== "production" || isLocalDesktopMode()) {
     return { status: "local-or-development" };
   }
@@ -43,6 +45,12 @@ export function validateDeploymentConfig(): DeploymentConfigValidationResult {
     process.env.JWT_SECRET,
     "sessions"
   );
+  assertHostedProductionSecret(
+    "CREDENTIAL_ENCRYPTION_KEY",
+    process.env.CREDENTIAL_ENCRYPTION_KEY,
+    "credential encryption"
+  );
+  requireEnv("DATABASE_URL", "durable hosted data storage");
   requireEnv("VITE_APP_ID", "hosted OAuth sessions");
   requireHttpsUrl("OAUTH_SERVER_URL", "hosted OAuth sessions");
 

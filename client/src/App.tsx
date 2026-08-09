@@ -18,6 +18,7 @@ const ScheduledCampaigns = lazy(() => import("./pages/ScheduledCampaigns"));
 const ResponseInbox = lazy(() => import("./pages/ResponseInbox"));
 const FollowUpQueue = lazy(() => import("./pages/FollowUpQueue"));
 const AuditLog = lazy(() => import("./pages/AuditLog"));
+const Operations = lazy(() => import("./pages/Operations"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 function Router() {
@@ -38,6 +39,7 @@ function Router() {
         <Route path="/responses" component={ResponseInbox} />
         <Route path="/follow-ups" component={FollowUpQueue} />
         <Route path="/audit" component={AuditLog} />
+        <Route path="/operations" component={Operations} />
         <Route path="/platforms" component={PlatformConnections} />
         <Route path="/queue" component={QueueMonitor} />
         <Route path="/scheduled" component={ScheduledCampaigns} />

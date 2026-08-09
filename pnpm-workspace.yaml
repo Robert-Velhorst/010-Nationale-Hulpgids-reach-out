@@ -1,0 +1,38 @@
+packages:
+  - .
+
+allowBuilds:
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  msgpackr-extract: true
+
+patchedDependencies:
+  wouter@3.7.1: patches/wouter@3.7.1.patch
+
+overrides:
+  "adm-zip@<0.6.0": 0.6.0
+  "body-parser@<1.20.6": 1.20.6
+  postcss: 8.5.26
+  "brace-expansion@>=2.0.0 <2.1.4": 2.1.4
+  "nanoid@>=3.0.0 <3.3.18": 3.3.18
+  tailwindcss>nanoid: 3.3.18
+  dompurify: 3.4.13
+  esbuild: 0.25.10
+  file-type: 21.3.2
+  form-data: 4.0.6
+  ip-address: 10.4.0
+  js-yaml: 4.3.1
+  lodash: 4.18.1
+  lodash-es: 4.18.1
+  mdast-util-to-hast: 13.2.1
+  mermaid: 11.16.1
+  minimatch: 9.0.9
+  path-to-regexp: 0.1.13
+  picomatch: 4.0.4
+  rollup: 4.60.4
+  tar: 7.5.22
+  tmp: 0.2.7
+  undici: 7.29.0
+  uuid: 11.1.1
+  ws: 8.21.0

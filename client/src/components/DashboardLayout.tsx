@@ -32,6 +32,7 @@ import {
   LogOut,
   MessageSquare,
   PanelLeft,
+  ShieldCheck,
   Target,
   Users,
 } from "lucide-react";
@@ -50,6 +51,7 @@ const menuItems = [
   { icon: Inbox, label: "Responses", path: "/responses" },
   { icon: History, label: "Follow-ups", path: "/follow-ups" },
   { icon: ClipboardList, label: "Audit", path: "/audit" },
+  { icon: ShieldCheck, label: "Operations", path: "/operations" },
   { icon: Link2, label: "Platforms", path: "/platforms" },
 ];
 
