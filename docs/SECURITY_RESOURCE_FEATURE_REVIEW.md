@@ -5,6 +5,7 @@ Review dates: 2026-05-24 through 2026-08-09
 ## Security Findings Fixed
 
 - Desktop local mode is blocked from starting an ngrok tunnel, so the local auto-login path cannot be exposed publicly by accident.
+- Desktop auto-login plus ngrok now fails before the HTTP server listens, removing an ambiguous partially started state.
 - Production sessions now fail closed when `JWT_SECRET` is missing.
 - Stored platform credentials now use AES-256-GCM encryption, and credential list responses no longer return stored passwords, API keys, or session data.
 - Campaign, candidate, and message actions now verify ownership before returning or mutating data.
@@ -47,6 +48,7 @@ Review dates: 2026-05-24 through 2026-08-09
 - The HAI connector is opt-in, token-protected, aggregate-only, bounded to 100 campaigns, audited, and excludes candidate PII and message or credential content.
 - Server startup now rejects invalid `PORT` values and logs ngrok startup errors through a handled promise path.
 - The desktop app embeds the local HTTP runtime in Electron's main process and waits for readiness, avoiding a redundant process and the disabled RunAsNode fuse path.
+- Installer scripts explicitly disable publishing so packaging has no inferred remote side effect in CI environments.
 - Production server dependencies are split-bundled while Crawlee, Vite, ngrok, and native adapters stay lazy/external; the loaded-host cold start improved from about 210 seconds to 11.38 seconds.
 - Docker context exclusions reduced the final context from 816 MB to 2.69 MB by omitting installer, package-manager, QA, and browser caches.
 - Queue concurrency is configurable and defaults to conservative values.

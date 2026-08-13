@@ -26,8 +26,7 @@ function restoreEnv() {
 function setHostedProductionEnv() {
   process.env.NODE_ENV = "production";
   delete process.env.LOCAL_DESKTOP_MODE;
-  process.env.JWT_SECRET =
-    "test-only-hosted-session-secret-with-enough-length";
+  process.env.JWT_SECRET = "test-only-hosted-session-secret-with-enough-length";
   process.env.CREDENTIAL_ENCRYPTION_KEY =
     "test-only-credential-encryption-key-long-enough";
   process.env.DATABASE_URL = "mysql://user:password@example.test/reachout";
@@ -50,6 +49,17 @@ describe("deployment configuration validation", () => {
     expect(validateDeploymentConfig()).toEqual({
       status: "local-or-development",
     });
+  });
+
+  it("fails startup when desktop auto-login and ngrok are both enabled", () => {
+    process.env.NODE_ENV = "production";
+    process.env.LOCAL_DESKTOP_MODE = "1";
+    process.env.NGROK_ENABLED = "true";
+    process.env.NGROK_AUTHTOKEN = "test-ngrok-token";
+
+    expect(() => validateDeploymentConfig()).toThrow(
+      /LOCAL_DESKTOP_MODE cannot be combined with NGROK_ENABLED/
+    );
   });
 
   it("requires OAuth app id and HTTPS OAuth server URL for hosted production", () => {

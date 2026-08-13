@@ -12,6 +12,8 @@
 - Hardened Electron builds no longer try to use the disabled `ELECTRON_RUN_AS_NODE` fuse; the embedded runtime was packaged and smoke-tested.
 - Production server cold start no longer incurs thousands of external package file lookups.
 - Docker no longer transmits 816 MB of local installer/package caches, and pnpm 10 frozen install accepts the lock patch metadata.
+- Desktop auto-login combined with ngrok now fails during configuration validation instead of merely declining the tunnel after the local server has started.
+- Local Windows packaging now explicitly disables publishing, preventing Electron Builder from inferring an unintended GitHub release when a CI environment variable is present.
 
 ## Open risks
 

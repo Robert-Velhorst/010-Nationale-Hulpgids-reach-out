@@ -19,3 +19,5 @@
 - Server production output is split-bundled for fast cold starts while optional/native integrations remain lazy.
 - Electron now owns the local HTTP runtime directly, avoiding the hardened RunAsNode incompatibility and a redundant process.
 - Docker context and pnpm lock metadata are deterministic across Windows and Linux.
+- Unsafe desktop-plus-ngrok configuration now fails before the local server starts.
+- Windows installer commands now explicitly build without publishing artifacts.

@@ -36,6 +36,12 @@ function requireHttpsUrl(name: string, purpose: string) {
 
 export function validateDeploymentConfig(): DeploymentConfigValidationResult {
   assertHaiConnectorConfiguration();
+  const ngrokEnabled = isEnabled(process.env.NGROK_ENABLED);
+  if (ngrokEnabled && isLocalDesktopMode()) {
+    throw new Error(
+      "LOCAL_DESKTOP_MODE cannot be combined with NGROK_ENABLED because desktop auto-login must remain loopback-only."
+    );
+  }
   if (process.env.NODE_ENV !== "production" || isLocalDesktopMode()) {
     return { status: "local-or-development" };
   }
@@ -54,7 +60,6 @@ export function validateDeploymentConfig(): DeploymentConfigValidationResult {
   requireEnv("VITE_APP_ID", "hosted OAuth sessions");
   requireHttpsUrl("OAUTH_SERVER_URL", "hosted OAuth sessions");
 
-  const ngrokEnabled = isEnabled(process.env.NGROK_ENABLED);
   if (ngrokEnabled) {
     requireEnv("NGROK_AUTHTOKEN", "ngrok tunnel startup");
   }

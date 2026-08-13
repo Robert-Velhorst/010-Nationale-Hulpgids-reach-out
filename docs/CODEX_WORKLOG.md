@@ -23,3 +23,11 @@ Commands and final results are maintained in `FINAL_VERIFICATION_REPORT.md` rath
 - Reworked the packaged desktop runtime to run inside Electron's main process after the hardened Electron fuse correctly rejected the old RunAsNode child-process approach.
 - Verified the final production bundle in desktop and mobile Chrome, the packaged Windows app, the NSIS installer, Docker failure/stop behavior, local backup integrity, and the HAI connector.
 - Recorded the remaining owner-controlled gates for provider authorization, live ngrok configuration, HAI registration, hosted recovery evidence, license choice, and Windows code signing.
+
+## 2026-08-14
+
+- Re-audited the clean pushed branch, mergeable draft PR, green remote checks, pinned dependency install, full tests, production build, audits, HAI feed/proxy, Docker image, and Windows package.
+- Found and fixed a fail-closed mismatch: desktop auto-login plus ngrok declined the tunnel but left the local server running even though the Operations guide promised startup refusal.
+- Added a startup-validation regression test, bringing the suite to 192 passing tests with 3 intentional skips.
+- Prevented local installer builds from inferring GitHub publishing when `CI` is set by adding `--publish never` to both installer commands.
+- Rebuilt and smoke-tested the Docker image and unsigned Windows installer from the corrected source.
