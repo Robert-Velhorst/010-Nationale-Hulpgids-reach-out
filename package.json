@@ -115,7 +115,7 @@
     "typescript": "5.9.3",
     "vaul": "^1.1.2",
     "vite": "^7.3.3",
-    "vite-plugin-manus-runtime": "^0.0.57",
+    "vite-plugin-manus-runtime": "^0.0.59",
     "vitest": "^4.1.7",
     "wouter": "^3.3.5"
   },
