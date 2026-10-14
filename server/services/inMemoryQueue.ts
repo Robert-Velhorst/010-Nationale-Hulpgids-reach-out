@@ -58,8 +58,8 @@ type DurableQueueStatus =
   | "cancelled";
 
 class QueueJobCancelledError extends Error {
-  constructor() {
-    super("Cancelled by user request");
+  constructor(message = "Cancelled by user request") {
+    super(message);
     this.name = "QueueJobCancelledError";
   }
 }
@@ -301,10 +301,16 @@ class InMemoryQueue extends EventEmitter {
       `[InMemoryQueue] Processing message job ${job.id} for candidate ${candidateId}`
     );
 
-    const { resolvePlatformIdentity } = await import("../db");
+    const database = await import("../db");
+    const campaign = await database.getCampaignById(campaignId);
+    if (!campaign) {
+      throw new Error("Campaign not found");
+    }
+    await this.assertOperatorActive(job, campaign.userId, campaignId);
+
     let platformRecord;
     try {
-      platformRecord = await resolvePlatformIdentity({
+      platformRecord = await database.resolvePlatformIdentity({
         platformId,
         platformName: platform,
       });
@@ -332,10 +338,8 @@ class InMemoryQueue extends EventEmitter {
     // Generate message if requested
     let messageContent = job.data.messageContent;
     if (generateMessage) {
-      const { getCandidateById, getCampaignById } = await import("../db");
       const { generateOutreachMessage } = await import("./aiMatching");
-      const candidate = await getCandidateById(candidateId);
-      const campaign = await getCampaignById(campaignId);
+      const candidate = await database.getCandidateById(candidateId);
 
       if (!candidate || !campaign) {
         throw new Error("Candidate or campaign not found");
@@ -354,8 +358,8 @@ class InMemoryQueue extends EventEmitter {
     this.emit("progress", { jobId: job.id, data: 50 });
 
     // Store message in database
-    const { createMessage } = await import("../db");
-    const messageId = await createMessage({
+    await this.assertOperatorActive(job, campaign.userId, campaignId);
+    const messageId = await database.createMessage({
       campaignId,
       candidateId,
       platformId: platformRecord.id,
@@ -432,6 +436,7 @@ class InMemoryQueue extends EventEmitter {
         { signal: abortSignal }
       );
       this.throwIfCancellationRequested(job);
+      await this.assertOperatorActive(job, effectiveUserId, campaignId);
     } catch (error) {
       if (
         error instanceof QueueJobCancelledError ||
@@ -464,8 +469,16 @@ class InMemoryQueue extends EventEmitter {
     const savedCandidates = [];
     let duplicateCount = 0;
 
-    for (const scrapedCandidate of scrapedCandidates) {
+    for (
+      let candidateIndex = 0;
+      candidateIndex < scrapedCandidates.length;
+      candidateIndex++
+    ) {
+      const scrapedCandidate = scrapedCandidates[candidateIndex];
       this.throwIfCancellationRequested(job);
+      if (candidateIndex > 0 && candidateIndex % 25 === 0) {
+        await this.assertOperatorActive(job, effectiveUserId, campaignId);
+      }
       const existingCandidate = findExistingCandidate(
         existingCandidates,
         campaignId,
@@ -583,9 +596,7 @@ class InMemoryQueue extends EventEmitter {
     return this.delayed.length;
   }
 
-  async cancelJobByDurableRecordId(
-    durableJobRecordId: number
-  ): Promise<{
+  async cancelJobByDurableRecordId(durableJobRecordId: number): Promise<{
     cancelled: boolean;
     cancellationRequested?: boolean;
     reason?: "not_found" | "not_cancellable";
@@ -667,15 +678,38 @@ class InMemoryQueue extends EventEmitter {
   }
 
   private isAbortError(error: unknown) {
-    return (
-      error instanceof DOMException && error.name === "AbortError"
-    );
+    return error instanceof DOMException && error.name === "AbortError";
   }
 
   private throwIfCancellationRequested(job: Job) {
     if (this.isCancellationRequested(job)) {
       throw new QueueJobCancelledError();
     }
+  }
+
+  private async assertOperatorActive(
+    job: Job,
+    userId: number,
+    campaignId: number
+  ) {
+    const database = await import("../db");
+    const control = await database.getUserOperatorControl(userId);
+    if (!control.outreachPaused) return;
+
+    const reason =
+      control.pauseReason?.trim() || "Operator global stop is active";
+    await database.createAuditEvent({
+      userId,
+      campaignId,
+      entityType: "queue_job",
+      entityId: this.getDurableRecordId(job) ?? 0,
+      action: "queue.cancelled_operator_stop",
+      actor: "system",
+      source: this.name,
+      riskLevel: "medium",
+      afterState: JSON.stringify({ queueJobId: job.id, reason }),
+    });
+    throw new QueueJobCancelledError(`Cancelled by operator stop: ${reason}`);
   }
 
   async getJobs(

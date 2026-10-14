@@ -1,6 +1,8 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
+import { getRuntimeHealth } from "./_core/runtimeHealth";
+import { resetLocalDesktopUserCache } from "./_core/context";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
@@ -31,6 +33,7 @@ import {
 
 // Import queue services (using in-memory queue for development)
 import { getQueueStats } from "./services/inMemoryQueue";
+import { getHaiConnectorStatus } from "./integrations/haiConnector";
 
 const credentialSecretSchema = z
   .string()
@@ -195,6 +198,7 @@ const terminalNegativeResponseClassifications = new Set([
 
 const BULK_APPROVAL_REVIEW_THRESHOLD = 10;
 const BATCH_DUPLICATE_RESOLUTION_LIMIT = 10;
+const ACCOUNT_DELETE_CONFIRMATION = "DELETE MY DATA";
 const sensitiveMessagePattern =
   /\b(bsn|medicatie|diagnose|ziekte|psychisch|trauma|verslaving|persoonlijke verzorging|intiem|toilet|dementie|autisme|adhd|ptss|depressie|angst|beperking|behandeling|therapie)\b/i;
 const duplicateBlockingMessageStatuses = new Set([
@@ -207,6 +211,28 @@ const duplicateBlockingMessageStatuses = new Set([
   "responded",
   "failed",
 ]);
+
+async function assertOutreachActive(userId: number, source: string) {
+  const control = await db.getUserOperatorControl(userId);
+  if (control.outreachPaused !== 1) return;
+  await db.createAuditEvent({
+    userId,
+    entityType: "operatorControl",
+    entityId: userId,
+    action: "outreach.action_blocked_global_pause",
+    actor: "system",
+    source,
+    riskLevel: "high",
+    afterState: serializeSafeJson({
+      outreachPaused: true,
+      pauseReason: control.pauseReason,
+    }),
+  });
+  throw new TRPCError({
+    code: "PRECONDITION_FAILED",
+    message: `Outreach is globally paused${control.pauseReason ? `: ${control.pauseReason}` : "."} Re-enable outreach in Operations after reviewing the issue.`,
+  });
+}
 
 function getReasonAuditMetadata(reason: string | null | undefined) {
   const trimmedReason = reason?.trim();
@@ -915,6 +941,208 @@ export const appRouter = router({
     }),
   }),
 
+  operations: router({
+    overview: protectedProcedure.query(async ({ ctx }) => {
+      const [control, campaigns, credentials, dataQuality] = await Promise.all([
+        db.getUserOperatorControl(ctx.user.id),
+        db.getUserCampaigns(ctx.user.id),
+        db.getCredentialStatus(ctx.user.id),
+        db.getCandidateDataQualitySummary(ctx.user.id),
+      ]);
+      const runtime = getRuntimeHealth();
+      return {
+        runtime,
+        environment: {
+          label:
+            runtime.mode === "local-desktop"
+              ? "LOCAL DESKTOP"
+              : runtime.mode === "ngrok"
+                ? "NGROK PRODUCTION"
+                : runtime.mode.toUpperCase(),
+          demoDataEnabled: false,
+          testProviderEnabled: false,
+        },
+        operatorControl: {
+          outreachPaused: control.outreachPaused === 1,
+          pauseReason: control.pauseReason,
+          retentionDays: control.retentionDays,
+          updatedAt: control.updatedAt,
+        },
+        providers: {
+          configured: credentials.filter(item => item.credential !== null)
+            .length,
+          verified: credentials.filter(
+            item => item.credential?.isConnected === 1
+          ).length,
+          assistedSendRequired: true,
+          note: "External sends remain manual unless a platform provides a verified compliant API. Delivery is recorded only with operator evidence.",
+        },
+        data: {
+          campaigns: campaigns.length,
+          candidates: dataQuality.totalCandidates,
+          candidatesNeedingReview: Math.max(
+            0,
+            dataQuality.totalCandidates - dataQuality.directContactCandidates
+          ),
+        },
+        privacy: {
+          exportAvailable: true,
+          deleteAvailable: true,
+          exportExcludesSecrets: true,
+          accountDeleteConfirmation: ACCOUNT_DELETE_CONFIRMATION,
+        },
+        integrations: {
+          hai: getHaiConnectorStatus(),
+        },
+      };
+    }),
+
+    setControl: protectedProcedure
+      .input(
+        z
+          .object({
+            outreachPaused: z.boolean(),
+            reason: z.string().trim().max(500).optional(),
+            retentionDays: z.number().int().min(30).max(3650).default(365),
+          })
+          .refine(
+            input => !input.outreachPaused || (input.reason?.length ?? 0) >= 8,
+            {
+              message: "Explain the pause reason in at least 8 characters.",
+              path: ["reason"],
+            }
+          )
+      )
+      .mutation(async ({ input, ctx }) => {
+        const before = await db.getUserOperatorControl(ctx.user.id);
+        const updated = await db.updateUserOperatorControl({
+          userId: ctx.user.id,
+          outreachPaused: input.outreachPaused,
+          pauseReason: input.reason,
+          retentionDays: input.retentionDays,
+        });
+        await db.createAuditEvent({
+          userId: ctx.user.id,
+          entityType: "operatorControl",
+          entityId: ctx.user.id,
+          action: input.outreachPaused
+            ? "outreach.globally_paused"
+            : "outreach.globally_resumed",
+          actor: "user",
+          source: "operations.setControl",
+          riskLevel: "high",
+          beforeState: serializeSafeJson({
+            outreachPaused: before.outreachPaused === 1,
+            retentionDays: before.retentionDays,
+          }),
+          afterState: serializeSafeJson({
+            outreachPaused: updated.outreachPaused === 1,
+            pauseReason: updated.pauseReason,
+            retentionDays: updated.retentionDays,
+          }),
+        });
+        return {
+          outreachPaused: updated.outreachPaused === 1,
+          pauseReason: updated.pauseReason,
+          retentionDays: updated.retentionDays,
+          updatedAt: updated.updatedAt,
+        };
+      }),
+
+    exportMyData: protectedProcedure
+      .input(z.object({ personalDataAcknowledged: z.literal(true) }))
+      .mutation(async ({ ctx }) => {
+        const exported = await db.exportUserData(ctx.user.id);
+        await db.createAuditEvent({
+          userId: ctx.user.id,
+          entityType: "user",
+          entityId: ctx.user.id,
+          action: "privacy.user_data_exported",
+          actor: "user",
+          source: "operations.exportMyData",
+          riskLevel: "high",
+          afterState: serializeSafeJson({
+            secretValuesExcluded: true,
+            counts: exported.counts,
+          }),
+        });
+        return exported;
+      }),
+
+    supportBundle: protectedProcedure.query(async ({ ctx }) => {
+      const [control, campaigns, queue, credentials] = await Promise.all([
+        db.getUserOperatorControl(ctx.user.id),
+        db.getUserCampaigns(ctx.user.id),
+        db.getQueueHealthSummary(ctx.user.id, { limit: 200 }),
+        db.getCredentialStatus(ctx.user.id),
+      ]);
+      return {
+        format: "nationale-hulpgids-support-bundle",
+        version: 1,
+        generatedAt: new Date().toISOString(),
+        secretsIncluded: false,
+        runtime: getRuntimeHealth(),
+        nodeVersion: process.versions.node,
+        configuration: {
+          databaseConfigured: Boolean(process.env.DATABASE_URL),
+          ngrokConfigured: Boolean(process.env.NGROK_AUTHTOKEN),
+          llmConfigured: Boolean(process.env.BUILT_IN_FORGE_API_KEY),
+          localDesktopMode:
+            process.env.LOCAL_DESKTOP_MODE === "1" ||
+            process.env.LOCAL_DESKTOP_MODE === "true",
+        },
+        operatorControl: {
+          outreachPaused: control.outreachPaused === 1,
+          pauseReason: control.pauseReason,
+          retentionDays: control.retentionDays,
+        },
+        counts: {
+          campaigns: campaigns.length,
+          configuredProviders: credentials.filter(
+            item => item.credential !== null
+          ).length,
+          verifiedProviders: credentials.filter(
+            item => item.credential?.isConnected === 1
+          ).length,
+          recentQueueRecords: queue.queues.reduce(
+            (total, item) => total + item.durable.recentRecords,
+            0
+          ),
+          failedQueueRecords: queue.queues.reduce(
+            (total, item) => total + item.durable.failed,
+            0
+          ),
+        },
+      };
+    }),
+
+    deleteMyData: protectedProcedure
+      .input(z.object({ confirmation: z.literal(ACCOUNT_DELETE_CONFIRMATION) }))
+      .mutation(async ({ ctx }) => {
+        const control = await db.getUserOperatorControl(ctx.user.id);
+        if (control.outreachPaused !== 1) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Pause outreach before deleting account data so no queued work can continue.",
+          });
+        }
+        await db.createAuditEvent({
+          userId: ctx.user.id,
+          entityType: "user",
+          entityId: ctx.user.id,
+          action: "privacy.user_data_delete_confirmed",
+          actor: "user",
+          source: "operations.deleteMyData",
+          riskLevel: "high",
+          afterState: serializeSafeJson({ confirmationMatched: true }),
+        });
+        await db.deleteUserData(ctx.user.id);
+        resetLocalDesktopUserCache();
+        return { success: true, deleted: true };
+      }),
+  }),
+
   // Queue management router
   queue: router({
     getStats: protectedProcedure
@@ -1041,6 +1269,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        await assertOutreachActive(ctx.user.id, "queue.recordJob");
         if (input.campaignId) {
           const campaign = await db.getCampaignById(input.campaignId);
           if (!campaign || campaign.userId !== ctx.user.id) {
@@ -1096,7 +1325,8 @@ export const appRouter = router({
         const { messageQueue, discoveryQueue } = await import(
           "./services/inMemoryQueue"
         );
-        const queue = job.queueName === "messages" ? messageQueue : discoveryQueue;
+        const queue =
+          job.queueName === "messages" ? messageQueue : discoveryQueue;
         const liveCancellation = await queue.cancelJobByDurableRecordId(job.id);
         if (
           canRequestActiveDiscoveryCancel &&
@@ -1280,6 +1510,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        await assertOutreachActive(ctx.user.id, "candidates.discover");
         const campaign = await db.getCampaignById(input.campaignId);
         if (!campaign) {
           throw new TRPCError({
@@ -1688,6 +1919,10 @@ export const appRouter = router({
         });*/
       }),
 
+    dataQuality: protectedProcedure.query(async ({ ctx }) => {
+      return db.getCandidateDataQualitySummary(ctx.user.id);
+    }),
+
     getDuplicates: protectedProcedure.query(async ({ ctx }) => {
       return db.getCandidateDuplicateGroups(ctx.user.id);
     }),
@@ -2011,7 +2246,8 @@ export const appRouter = router({
           if (pair.targetCandidateId === pair.sourceCandidateId) {
             throw new TRPCError({
               code: "BAD_REQUEST",
-              message: "Each duplicate pair must contain two different profiles.",
+              message:
+                "Each duplicate pair must contain two different profiles.",
             });
           }
           const pairKey = candidateDuplicatePairKey(
@@ -2298,6 +2534,7 @@ export const appRouter = router({
         throw new Error("Invalid input: expected object with numeric id");
       })
       .mutation(async ({ input, ctx }) => {
+        await assertOutreachActive(ctx.user.id, "campaigns.resume");
         const { getCampaignById, updateCampaign } = await import("./db");
         const campaign = await getCampaignById(input.id);
         if (!campaign || campaign.userId !== ctx.user.id) {
@@ -2843,6 +3080,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        await assertOutreachActive(ctx.user.id, "messages.approve");
         const message = await getOwnedMessageOrThrow(
           ctx.user.id,
           input.messageId
@@ -2978,6 +3216,9 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        if (input.status === "started" || input.status === "succeeded") {
+          await assertOutreachActive(ctx.user.id, "messages.recordSendAttempt");
+        }
         const message = await getOwnedMessageOrThrow(
           ctx.user.id,
           input.messageId
@@ -3504,6 +3745,9 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        if (input.status === "approved") {
+          await assertOutreachActive(ctx.user.id, "messages.updateStatus");
+        }
         const message = await getOwnedMessageOrThrow(
           ctx.user.id,
           input.messageId
@@ -3595,9 +3839,7 @@ export const appRouter = router({
           riskLevel: "low",
         });
         if (
-          ["sent", "delivered", "responded", "replied"].includes(
-            message.status
-          )
+          ["sent", "delivered", "responded", "replied"].includes(message.status)
         ) {
           await db.createAuditEvent({
             userId: ctx.user.id,
@@ -3617,9 +3859,11 @@ export const appRouter = router({
           });
         }
 
-        const shouldResetForReview = ["approved", "rejected", "failed"].includes(
-          message.status
-        );
+        const shouldResetForReview = [
+          "approved",
+          "rejected",
+          "failed",
+        ].includes(message.status);
         await updateMessage(input.messageId, input.subject, input.content);
         if (shouldResetForReview) {
           await db.updateMessageStatus(input.messageId, "queued");
@@ -3656,6 +3900,9 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        if (input.status === "approved") {
+          await assertOutreachActive(ctx.user.id, "messages.bulkUpdateStatus");
+        }
         if (input.status === "sent") {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -4139,6 +4386,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        await assertOutreachActive(ctx.user.id, "followUps.approve");
         const followUp = await db.getFollowUpById(input.followUpId);
         if (!followUp) {
           throw new TRPCError({

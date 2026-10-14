@@ -38,6 +38,10 @@ export function resetLocalDesktopUserCacheForTests() {
   cachedLocalDesktopUser = null;
 }
 
+export function resetLocalDesktopUserCache() {
+  cachedLocalDesktopUser = null;
+}
+
 export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {

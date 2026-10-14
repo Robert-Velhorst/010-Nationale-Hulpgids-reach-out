@@ -54,6 +54,8 @@ storage/
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov
+playwright-report/
+test-results/
 
 # nyc test coverage
 .nyc_output
@@ -112,5 +114,6 @@ temp/
 *.sqlite3
 local-store.json
 .local-data/
+.e2e-local-data/
 .test-local-data/
 security-scans/

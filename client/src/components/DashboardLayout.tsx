@@ -23,6 +23,7 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   ClipboardList,
+  Database,
   HelpCircle,
   History,
   Inbox,
@@ -31,6 +32,7 @@ import {
   LogOut,
   MessageSquare,
   PanelLeft,
+  ShieldCheck,
   Target,
   Users,
 } from "lucide-react";
@@ -44,10 +46,12 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Target, label: "Campaigns", path: "/campaigns" },
   { icon: Users, label: "Candidates", path: "/candidates" },
+  { icon: Database, label: "Data quality", path: "/data-quality" },
   { icon: MessageSquare, label: "Messages", path: "/messages" },
   { icon: Inbox, label: "Responses", path: "/responses" },
   { icon: History, label: "Follow-ups", path: "/follow-ups" },
   { icon: ClipboardList, label: "Audit", path: "/audit" },
+  { icon: ShieldCheck, label: "Operations", path: "/operations" },
   { icon: Link2, label: "Platforms", path: "/platforms" },
 ];
 

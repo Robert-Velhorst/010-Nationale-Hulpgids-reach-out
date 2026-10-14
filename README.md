@@ -9,6 +9,7 @@ An outreach tool for finding, matching, and contacting care professionals across
 - Drafts personalized outreach messages.
 - Lets the user review and edit messages before sending.
 - Tracks campaigns, candidates, messages, and queue status.
+- Provides an emergency stop, privacy export/delete, and redacted diagnostics.
 - Runs as a Windows desktop app or as a production web app through ngrok.
 
 ## Run Modes
@@ -30,6 +31,7 @@ pnpm build
 set NGROK_AUTHTOKEN=your-ngrok-token
 set JWT_SECRET=a-long-random-secret-at-least-32-characters
 set CREDENTIAL_ENCRYPTION_KEY=a-long-random-secret-at-least-32-characters
+set DATABASE_URL=mysql://user:password@host/database
 set VITE_APP_ID=your-manus-app-id
 set OAUTH_SERVER_URL=https://your-oauth-server.example
 pnpm start:ngrok
@@ -79,6 +81,7 @@ pnpm install
 pnpm check
 pnpm test
 pnpm build
+pnpm doctor:built
 pnpm installer:win
 ```
 
@@ -103,7 +106,15 @@ Resource controls:
 ## Documentation
 
 - [Operations guide](docs/OPERATIONS.md)
-- [Security, resource, and feature review](docs/SECURITY_RESOURCE_FEATURE_REVIEW.md)
+- [Operator runbook](docs/OPERATOR_RUNBOOK.md)
+- [HAI connector](docs/HAI_CONNECTOR.md)
+- [Security and privacy](docs/SECURITY.md)
+- [Critical path](docs/CRITICAL_PATH.md)
+- [Acceptance tests](docs/ACCEPTANCE_TESTS.md)
+- [Goal completion matrix](docs/GOAL_COMPLETION_MATRIX.md)
+- [Final verification](docs/FINAL_VERIFICATION_REPORT.md)
+- [User guide](docs/USER_GUIDE.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 
 ## Project Layout
 
@@ -123,7 +134,18 @@ docs/       Operator and review notes
 - Stored platform credentials are encrypted.
 - Credential list responses do not expose stored secrets.
 - Campaign and message data is scoped to the current user.
+- Hosted startup requires durable MySQL storage and never falls back to desktop data.
+- External delivery remains assisted/manual until a provider supplies a verified compliant API.
+
+## Recovery and Diagnostics
+
+```bash
+pnpm doctor
+pnpm backup:local -- C:\Backups\ReachOut
+pnpm verify:backup -- C:\Backups\ReachOut
+pnpm restore:local -- C:\Backups\ReachOut --confirm
+```
 
 ## License
 
-Proprietary software owned by Noodzakelijk Online.
+`package.json` currently declares MIT while earlier project documentation used proprietary language. The repository owner must resolve that legal metadata before public distribution.

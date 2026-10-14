@@ -1,14 +1,22 @@
 import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { validateDeploymentConfig } from "./deploymentConfig";
 import { getRuntimeHealth } from "./runtimeHealth";
+import { getRuntimeReadiness } from "./runtimeReadiness";
+import {
+  applySecurityHeaders,
+  requireSameOriginForMutation,
+} from "./httpSecurity";
 import { startNgrokTunnel, stopNgrokTunnel } from "./ngrok";
 import { serveStatic, setupVite } from "./vite";
+import { handleHaiFeed } from "../integrations/haiConnector";
 
 async function listenOnAvailablePort(
   server: ReturnType<typeof createServer>,
@@ -39,7 +47,9 @@ async function listenOnAvailablePort(
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
-async function startServer() {
+export async function startServer(
+  options: { registerSignalHandlers?: boolean } = {}
+) {
   validateDeploymentConfig();
 
   const app = express();
@@ -48,16 +58,19 @@ async function startServer() {
 
   app.disable("x-powered-by");
   app.set("trust proxy", "loopback");
-  app.use((_req, res, next) => {
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-    next();
-  });
+  app.use(applySecurityHeaders);
+  app.use(requireSameOriginForMutation);
   app.use(express.json({ limit: bodyLimit }));
   app.use(express.urlencoded({ limit: bodyLimit, extended: true }));
   app.get("/api/health", (_req, res) => {
     res.json(getRuntimeHealth());
+  });
+  app.get("/api/readiness", async (_req, res) => {
+    const readiness = await getRuntimeReadiness();
+    res.status(readiness.ready ? 200 : 503).json(readiness);
+  });
+  app.get("/api/integrations/hai/feed", (req, res, next) => {
+    handleHaiFeed(req, res).catch(next);
   });
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
@@ -71,7 +84,10 @@ async function startServer() {
   );
   // Vite is only used when explicitly requested for frontend development.
   // Normal local, ngrok, and packaged app runs serve the built static files.
-  if (process.env.NODE_ENV === "development" && process.env.USE_VITE_DEV_SERVER === "true") {
+  if (
+    process.env.NODE_ENV === "development" &&
+    process.env.USE_VITE_DEV_SERVER === "true"
+  ) {
     await setupVite(app, server);
   } else {
     serveStatic(app);
@@ -79,7 +95,11 @@ async function startServer() {
 
   const preferredPortRaw = process.env.PORT ?? "3000";
   const preferredPort = Number.parseInt(preferredPortRaw, 10);
-  if (!Number.isInteger(preferredPort) || preferredPort < 1 || preferredPort > 65535) {
+  if (
+    !Number.isInteger(preferredPort) ||
+    preferredPort < 1 ||
+    preferredPort > 65535
+  ) {
     throw new Error(`Invalid PORT value: ${preferredPortRaw}`);
   }
 
@@ -90,26 +110,49 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  console.log(`Server running on http://${host === "0.0.0.0" ? "localhost" : host}:${port}/`);
+  console.log(
+    `Server running on http://${host === "0.0.0.0" ? "localhost" : host}:${port}/`
+  );
   startNgrokTunnel(port).catch(error => {
     console.error("[ngrok] Failed to start ngrok tunnel:", error);
   });
 
-  const shutdownNgrok = async () => {
-    try {
-      await stopNgrokTunnel();
-    } catch (error) {
-      console.error("[ngrok] Failed to stop tunnel cleanly:", error);
-    }
+  let closePromise: Promise<void> | null = null;
+  const close = () => {
+    if (closePromise) return closePromise;
+    closePromise = (async () => {
+      try {
+        await stopNgrokTunnel();
+      } catch (error) {
+        console.error("[ngrok] Failed to stop tunnel cleanly:", error);
+      }
+      await new Promise<void>((resolve, reject) => {
+        server.close(error => (error ? reject(error) : resolve()));
+      });
+    })();
+    return closePromise;
   };
 
-  const runOnShutdown = (signalName: string) => {
-    process.once(signalName, () => {
-      void shutdownNgrok();
-    });
-  };
-  runOnShutdown("SIGINT");
-  runOnShutdown("SIGTERM");
+  if (options.registerSignalHandlers !== false) {
+    const runOnShutdown = (signalName: "SIGINT" | "SIGTERM") => {
+      process.once(signalName, () => {
+        void close().finally(() => process.exit(0));
+      });
+    };
+    runOnShutdown("SIGINT");
+    runOnShutdown("SIGTERM");
+  }
+
+  const origin = `http://${host === "0.0.0.0" ? "localhost" : host}:${port}`;
+  return { origin, port, close };
 }
 
-startServer().catch(console.error);
+const entryPath = process.argv[1]
+  ? pathToFileURL(path.resolve(process.argv[1])).href
+  : "";
+if (entryPath === import.meta.url) {
+  startServer().catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
