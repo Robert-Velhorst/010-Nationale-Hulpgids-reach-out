@@ -5,7 +5,7 @@
   "author": "Noodzakelijk Online",
   "type": "module",
   "main": "desktop/main.cjs",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "cross-env NODE_ENV=development USE_VITE_DEV_SERVER=true tsx watch server/_core/index.ts",
     "build": "node scripts/build.cjs",
