@@ -3,6 +3,8 @@ import { validateDeploymentConfig } from "./deploymentConfig";
 
 const previousEnv = {
   JWT_SECRET: process.env.JWT_SECRET,
+  CREDENTIAL_ENCRYPTION_KEY: process.env.CREDENTIAL_ENCRYPTION_KEY,
+  DATABASE_URL: process.env.DATABASE_URL,
   LOCAL_DESKTOP_MODE: process.env.LOCAL_DESKTOP_MODE,
   NGROK_AUTHTOKEN: process.env.NGROK_AUTHTOKEN,
   NGROK_ENABLED: process.env.NGROK_ENABLED,
@@ -24,8 +26,10 @@ function restoreEnv() {
 function setHostedProductionEnv() {
   process.env.NODE_ENV = "production";
   delete process.env.LOCAL_DESKTOP_MODE;
-  process.env.JWT_SECRET =
-    "test-only-hosted-session-secret-with-enough-length";
+  process.env.JWT_SECRET = "test-only-hosted-session-secret-with-enough-length";
+  process.env.CREDENTIAL_ENCRYPTION_KEY =
+    "test-only-credential-encryption-key-long-enough";
+  process.env.DATABASE_URL = "mysql://user:password@example.test/reachout";
   process.env.VITE_APP_ID = "reachout-test-app";
   process.env.OAUTH_SERVER_URL = "https://oauth.example.test";
 }
@@ -45,6 +49,17 @@ describe("deployment configuration validation", () => {
     expect(validateDeploymentConfig()).toEqual({
       status: "local-or-development",
     });
+  });
+
+  it("fails startup when desktop auto-login and ngrok are both enabled", () => {
+    process.env.NODE_ENV = "production";
+    process.env.LOCAL_DESKTOP_MODE = "1";
+    process.env.NGROK_ENABLED = "true";
+    process.env.NGROK_AUTHTOKEN = "test-ngrok-token";
+
+    expect(() => validateDeploymentConfig()).toThrow(
+      /LOCAL_DESKTOP_MODE cannot be combined with NGROK_ENABLED/
+    );
   });
 
   it("requires OAuth app id and HTTPS OAuth server URL for hosted production", () => {

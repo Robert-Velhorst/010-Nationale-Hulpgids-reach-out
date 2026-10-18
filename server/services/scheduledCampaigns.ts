@@ -139,6 +139,27 @@ async function executeCampaign(campaign: any) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
+  const operatorControl = await database.getUserOperatorControl(campaign.userId);
+  if (operatorControl.outreachPaused === 1) {
+    await database.createAuditEvent({
+      userId: campaign.userId,
+      campaignId: campaign.id,
+      entityType: "campaign",
+      entityId: campaign.id,
+      action: "campaign.discovery_blocked_global_pause",
+      actor: "system",
+      source: "scheduledCampaigns.executeCampaign",
+      riskLevel: "high",
+      afterState: JSON.stringify({
+        outreachPaused: true,
+        pauseReason: operatorControl.pauseReason,
+      }),
+    });
+    throw new Error(
+      `Scheduled campaign blocked by global outreach pause${operatorControl.pauseReason ? `: ${operatorControl.pauseReason}` : "."}`
+    );
+  }
+
   console.log(
     `[ScheduledCampaigns] Executing campaign ${campaign.id}: ${campaign.title}`
   );

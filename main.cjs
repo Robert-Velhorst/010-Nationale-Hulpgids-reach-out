@@ -63,12 +63,14 @@ function requestHealth(url) {
       });
       response.on("end", () => {
         if (response.statusCode !== 200) {
-          reject(new Error(`Health check returned HTTP ${response.statusCode}`));
+          reject(
+            new Error(`Health check returned HTTP ${response.statusCode}`)
+          );
           return;
         }
         try {
           const parsed = JSON.parse(body);
-          resolve(parsed?.ok === true);
+          resolve(parsed?.ready === true);
         } catch (error) {
           reject(error);
         }
@@ -83,7 +85,7 @@ function requestHealth(url) {
 }
 
 async function waitForHealth(origin) {
-  const healthUrl = `${origin.replace(/\/$/, "")}/api/health`;
+  const healthUrl = `${origin.replace(/\/$/, "")}/api/readiness`;
   const deadline = Date.now() + HEALTH_READY_TIMEOUT_MS;
   let lastError;
 
@@ -149,6 +151,24 @@ function startServer() {
   const secrets = ensureDesktopSecrets(userDataPath);
   const serverPath = path.join(appPath, "dist", "index.js");
   const publicDir = path.join(appPath, "dist", "public");
+  const serverEnv = {
+    ...process.env,
+    ELECTRON_RUN_AS_NODE: "1",
+    NODE_ENV: "production",
+    LOCAL_DESKTOP_MODE: "1",
+    PORT: process.env.PORT || "39410",
+    HOST: "127.0.0.1",
+    PUBLIC_DIR: publicDir,
+    LOCAL_DATA_DIR: userDataPath,
+    JWT_SECRET: process.env.JWT_SECRET || secrets.jwtSecret,
+    CREDENTIAL_ENCRYPTION_KEY:
+      process.env.CREDENTIAL_ENCRYPTION_KEY || secrets.credentialEncryptionKey,
+  };
+
+  // Prevent accidental ngrok exposure from inherited shell environment.
+  delete serverEnv.NGROK_ENABLED;
+  delete serverEnv.NGROK_AUTHTOKEN;
+  delete serverEnv.NGROK_DOMAIN;
 
   if (!fs.existsSync(serverPath) || !fs.existsSync(publicDir)) {
     dialog.showErrorBox(
@@ -161,20 +181,7 @@ function startServer() {
 
   serverProcess = spawn(process.execPath, [serverPath], {
     cwd: appPath,
-    env: {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: "1",
-      NODE_ENV: "production",
-      LOCAL_DESKTOP_MODE: "1",
-      PORT: process.env.PORT || "39410",
-      HOST: "127.0.0.1",
-      PUBLIC_DIR: publicDir,
-      LOCAL_DATA_DIR: userDataPath,
-      JWT_SECRET: process.env.JWT_SECRET || secrets.jwtSecret,
-      CREDENTIAL_ENCRYPTION_KEY:
-        process.env.CREDENTIAL_ENCRYPTION_KEY ||
-        secrets.credentialEncryptionKey,
-    },
+    env: serverEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
 

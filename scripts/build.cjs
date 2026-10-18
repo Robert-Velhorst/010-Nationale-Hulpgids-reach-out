@@ -1,11 +1,16 @@
-const { existsSync, readdirSync } = require("node:fs");
+const { existsSync, readdirSync, statSync, unlinkSync } = require("node:fs");
 const { join, resolve } = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const root = resolve(__dirname, "..");
 
 function bin(name) {
-  return resolve(root, "node_modules", ".bin", process.platform === "win32" ? `${name}.cmd` : name);
+  return resolve(
+    root,
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? `${name}.cmd` : name
+  );
 }
 
 function packageFile(...parts) {
@@ -38,19 +43,42 @@ function serverBuildArgs() {
   return [
     "./server/_core/index.ts",
     "--platform=node",
-    "--packages=external",
     "--bundle",
+    "--splitting",
     "--format=esm",
     "--alias:@shared=./shared",
     "--outdir=dist",
+    "--external:@ngrok/ngrok",
+    "--external:crawlee",
+    "--external:lightningcss",
+    "--external:mysql2",
+    "--external:nanoid",
+    "--external:rate-limiter-flexible",
+    "--external:vite",
+    "--banner:js=import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
   ];
+}
+
+function clearGeneratedServerOutput() {
+  const outputDir = join(root, "dist");
+  if (!existsSync(outputDir)) return;
+
+  for (const entry of readdirSync(outputDir)) {
+    const outputPath = join(outputDir, entry);
+    if (statSync(outputPath).isFile()) unlinkSync(outputPath);
+  }
 }
 
 function viteCommand() {
   if (process.platform === "win32") {
     return {
       command: process.execPath,
-      args: [packageFile("vite", "bin", "vite.js"), "build", "--configLoader", "runner"],
+      args: [
+        packageFile("vite", "bin", "vite.js"),
+        "build",
+        "--configLoader",
+        "runner",
+      ],
     };
   }
 
@@ -63,12 +91,21 @@ function viteCommand() {
 function findWindowsEsbuildBinary(baseRoot) {
   const pnpmDir = join(baseRoot, "node_modules", ".pnpm");
   const prefix = "@esbuild+win32-x64@";
-  const packageDir = readdirSync(pnpmDir).find((entry) => entry.startsWith(prefix));
+  const packageDir = readdirSync(pnpmDir).find(entry =>
+    entry.startsWith(prefix)
+  );
   if (!packageDir) {
     throw new Error("Could not find the Windows esbuild binary package.");
   }
 
-  return join(pnpmDir, packageDir, "node_modules", "@esbuild", "win32-x64", "esbuild.exe");
+  return join(
+    pnpmDir,
+    packageDir,
+    "node_modules",
+    "@esbuild",
+    "win32-x64",
+    "esbuild.exe"
+  );
 }
 
 function esbuildCommand(baseRoot = root) {
@@ -122,6 +159,7 @@ function substServerBuild() {
 
 const vite = viteCommand();
 runRequired(vite.command, vite.args);
+clearGeneratedServerOutput();
 
 if (process.platform === "win32") {
   const serverStatus = substServerBuild();

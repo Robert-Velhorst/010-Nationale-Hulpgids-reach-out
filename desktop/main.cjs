@@ -1,7 +1,7 @@
 const { app, BrowserWindow, dialog } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { pathToFileURL } = require("node:url");
 const crypto = require("node:crypto");
 const http = require("node:http");
 
@@ -63,12 +63,14 @@ function requestHealth(url) {
       });
       response.on("end", () => {
         if (response.statusCode !== 200) {
-          reject(new Error(`Health check returned HTTP ${response.statusCode}`));
+          reject(
+            new Error(`Health check returned HTTP ${response.statusCode}`)
+          );
           return;
         }
         try {
           const parsed = JSON.parse(body);
-          resolve(parsed?.ok === true);
+          resolve(parsed?.ready === true);
         } catch (error) {
           reject(error);
         }
@@ -83,7 +85,7 @@ function requestHealth(url) {
 }
 
 async function waitForHealth(origin) {
-  const healthUrl = `${origin.replace(/\/$/, "")}/api/health`;
+  const healthUrl = `${origin.replace(/\/$/, "")}/api/readiness`;
   const deadline = Date.now() + HEALTH_READY_TIMEOUT_MS;
   let lastError;
 
@@ -143,7 +145,7 @@ function createWindow() {
   );
 }
 
-function startServer() {
+async function startServer() {
   const appPath = app.getAppPath();
   const userDataPath = app.getPath("userData");
   const secrets = ensureDesktopSecrets(userDataPath);
@@ -151,7 +153,6 @@ function startServer() {
   const publicDir = path.join(appPath, "dist", "public");
   const serverEnv = {
     ...process.env,
-    ELECTRON_RUN_AS_NODE: "1",
     NODE_ENV: "production",
     LOCAL_DESKTOP_MODE: "1",
     PORT: process.env.PORT || "39410",
@@ -177,61 +178,6 @@ function startServer() {
     return;
   }
 
-  serverProcess = spawn(process.execPath, [serverPath], {
-    cwd: appPath,
-    env: serverEnv,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-
-  serverProcess.stdout.on("data", chunk => {
-    appendServerLog("stdout", chunk);
-    const output = chunk.toString();
-    const match = output.match(/Server running on (http:\/\/[^\s]+)/);
-    if (match?.[1] && mainWindow) {
-      localAppOrigin = new URL(match[1]).origin;
-      waitForHealth(localAppOrigin)
-        .then(() => {
-          if (!mainWindow || mainWindow.isDestroyed()) return;
-          serverReady = true;
-          if (startupTimer) {
-            clearTimeout(startupTimer);
-            startupTimer = undefined;
-          }
-          mainWindow.loadURL(match[1]);
-        })
-        .catch(error => {
-          showStartupFailure(
-            "App server not ready",
-            `The local app server started but did not pass its health check: ${error.message}. Restart the application to try again.`
-          );
-          app.quit();
-        });
-    }
-  });
-
-  serverProcess.stderr.on("data", chunk => {
-    appendServerLog("stderr", chunk);
-    console.error(chunk.toString());
-  });
-
-  serverProcess.on("exit", code => {
-    if (isQuitting) return;
-    if (!serverReady) {
-      showStartupFailure(
-        "App server failed to start",
-        `The local app server exited before the dashboard was ready (exit code ${code ?? "unknown"}). Restart the application to try again.`
-      );
-      app.quit();
-      return;
-    }
-    if (code !== 0 && mainWindow) {
-      showStartupFailure(
-        "App server stopped",
-        "The local app server stopped unexpectedly. Restart the application to try again."
-      );
-    }
-  });
-
   startupTimer = setTimeout(() => {
     showStartupFailure(
       "App server startup timed out",
@@ -239,6 +185,33 @@ function startServer() {
     );
     app.quit();
   }, STARTUP_TIMEOUT_MS);
+
+  Object.assign(process.env, serverEnv);
+  try {
+    const serverModule = await import(pathToFileURL(serverPath).href);
+    serverProcess = await serverModule.startServer({
+      registerSignalHandlers: false,
+    });
+    localAppOrigin = serverProcess.origin;
+    await waitForHealth(localAppOrigin);
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    serverReady = true;
+    if (startupTimer) {
+      clearTimeout(startupTimer);
+      startupTimer = undefined;
+    }
+    await mainWindow.loadURL(localAppOrigin);
+  } catch (error) {
+    appendServerLog(
+      "error",
+      error instanceof Error ? error.stack || error.message : String(error)
+    );
+    showStartupFailure(
+      "App server failed to start",
+      "The local app server could not start. Restart the application to try again."
+    );
+    app.quit();
+  }
 }
 
 app.whenReady().then(() => {
@@ -251,7 +224,7 @@ app.whenReady().then(() => {
   });
 
   createWindow();
-  startServer();
+  void startServer();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -266,8 +239,8 @@ app.on("before-quit", () => {
     clearTimeout(startupTimer);
     startupTimer = undefined;
   }
-  if (serverProcess && !serverProcess.killed) {
-    serverProcess.kill();
+  if (serverProcess?.close) {
+    void serverProcess.close();
   }
 });
 
