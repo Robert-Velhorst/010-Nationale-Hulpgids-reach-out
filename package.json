@@ -30,7 +30,7 @@
   "dependencies": {
     "@ngrok/ngrok": "^1.5.2",
     "@trpc/server": "^11.17.0",
-    "axios": "^1.19.0",
+    "axios": "^1.20.0",
     "cheerio": "^1.2.0",
     "cookie": "^1.0.2",
     "crawlee": "^3.18.2",
@@ -90,7 +90,7 @@
     "date-fns": "^4.1.0",
     "drizzle-kit": "^0.31.4",
     "embla-carousel-react": "^8.6.0",
-    "electron": "^42.8.1",
+    "electron": "^42.10.0",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
     "input-otp": "^1.4.2",
@@ -116,7 +116,7 @@
     "typescript": "5.9.3",
     "vaul": "^1.1.2",
     "vite": "^7.3.6",
-    "vitest": "^4.1.7",
+    "vitest": "^5.0.5",
     "wouter": "^3.3.5"
   },
   "packageManager": "pnpm@10.34.5",
