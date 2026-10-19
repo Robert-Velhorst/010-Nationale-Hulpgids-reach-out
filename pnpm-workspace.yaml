@@ -7,13 +7,10 @@ allowBuilds:
   esbuild: true
   msgpackr-extract: true
 
-patchedDependencies:
-  wouter@3.7.1: patches/wouter@3.7.1.patch
-
 overrides:
   "adm-zip@<0.6.1": 0.6.1
   "body-parser@<1.20.6": 1.20.6
-  postcss: 8.5.26
+  postcss: 8.5.31
   "brace-expansion@>=2.0.0 <2.1.7": 2.1.7
   "nanoid@>=3.0.0 <3.3.18": 3.3.18
   tailwindcss>nanoid: 3.3.18
@@ -48,3 +45,6 @@ overrides:
   qs: 6.16.1
   "@xmldom/xmldom@^0.8.0": 0.8.15
   "@xmldom/xmldom@^0.9.0": 0.9.12
+
+patchedDependencies:
+  wouter@3.13.0: patches/wouter@3.13.0.patch
