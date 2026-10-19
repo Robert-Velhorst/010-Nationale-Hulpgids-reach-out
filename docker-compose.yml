@@ -13,9 +13,6 @@ services:
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:?Set CREDENTIAL_ENCRYPTION_KEY in .env}
       VITE_APP_ID: ${VITE_APP_ID:?Set VITE_APP_ID in .env}
       OAUTH_SERVER_URL: ${OAUTH_SERVER_URL:?Set OAUTH_SERVER_URL in .env}
-      NGROK_ENABLED: ${NGROK_ENABLED:-false}
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
-      NGROK_DOMAIN: ${NGROK_DOMAIN:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/readiness').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s

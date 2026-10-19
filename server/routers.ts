@@ -956,9 +956,7 @@ export const appRouter = router({
           label:
             runtime.mode === "local-desktop"
               ? "LOCAL DESKTOP"
-              : runtime.mode === "ngrok"
-                ? "NGROK PRODUCTION"
-                : runtime.mode.toUpperCase(),
+              : runtime.mode.toUpperCase(),
           demoDataEnabled: false,
           testProviderEnabled: false,
         },
@@ -1085,7 +1083,6 @@ export const appRouter = router({
         nodeVersion: process.versions.node,
         configuration: {
           databaseConfigured: Boolean(process.env.DATABASE_URL),
-          ngrokConfigured: Boolean(process.env.NGROK_AUTHTOKEN),
           llmConfigured: Boolean(process.env.BUILT_IN_FORGE_API_KEY),
           localDesktopMode:
             process.env.LOCAL_DESKTOP_MODE === "1" ||

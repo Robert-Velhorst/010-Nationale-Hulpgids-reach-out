@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | A01 | Fresh install and build | Frozen install, type-check, tests, build, and doctor pass | CI and final report |
 | A02 | Local desktop launch | Loopback app loads with local user and no hosted credentials | E2E + installer run |
-| A03 | ngrok startup without required config | Startup fails before listening and names missing variables | deployment tests |
+| A03 | Hetzner hosted startup without required config | Startup fails before listening and names missing variables | deployment tests |
 | A04 | Cross-user campaign/message access | Resource is not returned or changed | router tests |
 | A05 | Dry-run approval | Approval is rejected and audited | message tests |
 | A06 | Sensitive message approval | Explicit acknowledgement is required | message tests |

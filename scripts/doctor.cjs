@@ -9,21 +9,25 @@ const localDesktop = ["1", "true"].includes(
 );
 const production = process.env.NODE_ENV === "production";
 const hosted = production && !localDesktop;
-const ngrok = ["1", "true"].includes(
-  String(process.env.NGROK_ENABLED).toLowerCase()
-);
 const checks = [];
 
 function check(name, ok, level, detail) {
   checks.push({ name, ok: Boolean(ok), level, detail });
 }
 
-const nodeMajor = Number.parseInt(process.versions.node.split(".")[0], 10);
+const nodeVersion = process.versions.node.split(".").map(Number);
+const minimumNodeVersion = [26, 12, 0];
+const meetsMinimumNodeVersion =
+  nodeVersion[0] > minimumNodeVersion[0] ||
+  (nodeVersion[0] === minimumNodeVersion[0] &&
+    (nodeVersion[1] > minimumNodeVersion[1] ||
+      (nodeVersion[1] === minimumNodeVersion[1] &&
+        nodeVersion[2] >= minimumNodeVersion[2])));
 check(
   "node-version",
-  nodeMajor >= 22,
+  meetsMinimumNodeVersion,
   "error",
-  `Node ${process.versions.node}; 22+ required`
+  `Node ${process.versions.node}; 26.12.0+ required`
 );
 check(
   "lockfile",
@@ -70,14 +74,6 @@ if (hosted) {
         : `${name} is required`
     );
   }
-  if (ngrok) {
-    check(
-      "env-NGROK_AUTHTOKEN",
-      Boolean(process.env.NGROK_AUTHTOKEN?.trim()),
-      "error",
-      "NGROK_AUTHTOKEN is required when NGROK_ENABLED=true"
-    );
-  }
 } else {
   check(
     "runtime-mode",
@@ -87,25 +83,10 @@ if (hosted) {
   );
 }
 
-if (localDesktop && ngrok) {
-  check(
-    "desktop-tunnel-isolation",
-    false,
-    "error",
-    "Local desktop auto-login must never be exposed through ngrok"
-  );
-}
-
 const failures = checks.filter(item => !item.ok && item.level === "error");
 const result = {
   ok: failures.length === 0,
-  mode: localDesktop
-    ? "local-desktop"
-    : ngrok
-      ? "ngrok"
-      : production
-        ? "production"
-        : "development",
+  mode: localDesktop ? "local-desktop" : production ? "production" : "development",
   checks,
 };
 

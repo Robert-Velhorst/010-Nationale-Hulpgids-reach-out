@@ -15,13 +15,13 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
-          version: 10.34.5
-      - uses: actions/setup-node@v4
+          version: 12.14.0
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 26.12.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
@@ -32,13 +32,13 @@ jobs:
   browser-smoke:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
-          version: 10.34.5
-      - uses: actions/setup-node@v4
+          version: 12.14.0
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 26.12.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
