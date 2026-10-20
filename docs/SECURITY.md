@@ -8,7 +8,7 @@ Candidate identity/contact data, care-context criteria, message content, provide
 
 - Browser/Electron renderer to Express/tRPC.
 - Hosted OAuth identity to current-user database ownership.
-- Server to MySQL, LLM/storage proxies, ngrok, and public provider pages.
+- Server to MySQL, LLM/storage proxies, Hetzner ingress, and public provider pages.
 - Operator-reviewed draft to an external provider UI.
 - Local Electron process to the per-user Windows data directory.
 
@@ -20,7 +20,7 @@ Candidate identity/contact data, care-context criteria, message content, provide
 | CSRF/cross-origin mutations | Same-origin enforcement for unsafe methods plus session cookie policy. |
 | XSS/clickjacking | React escaping, CSP, `frame-ancestors`, and `X-Frame-Options`. |
 | Secret leakage | Dedicated encryption key, AES-256-GCM, response omission, redaction, and no secret fields in exports/support bundles. |
-| Desktop data exposure | Loopback binding, sandboxed renderer, generated per-install secrets, and ngrok stripping. |
+| Desktop data exposure | Loopback binding, sandboxed renderer, generated per-install secrets, and removal of public-tunnel support. |
 | False provider success | Unsupported sends throw; delivery requires approval and evidence. |
 | Runaway outreach | Rate limits, cooldowns, quiet hours, bounded queues, readiness, and global emergency stop. |
 | Duplicate/ambiguous action | Approval snapshots, send attempts, duplicate candidate review, existing-message checks, and manual evidence. |
@@ -40,7 +40,7 @@ Operators can export current-user data and permanently delete the account. Expor
 3. Rotate OAuth/provider credentials at the provider first.
 4. Rotate `JWT_SECRET`, which invalidates hosted sessions.
 5. Rotate `CREDENTIAL_ENCRYPTION_KEY` only with a planned re-encryption migration; changing it alone makes stored credentials unreadable.
-6. Rotate ngrok and infrastructure tokens, then restart and run readiness/doctor checks.
+6. Rotate infrastructure tokens, then restart and run readiness/doctor checks.
 7. Re-test each provider. Never mark a credential connected without a verified flow.
 
 ## Reporting

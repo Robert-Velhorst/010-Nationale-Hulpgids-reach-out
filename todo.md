@@ -23,5 +23,5 @@ The core approval-gated assisted-outreach workflow is implemented. Remaining wor
 
 - Configure a Windows code-signing certificate and use `pnpm installer:win:signed` for public distribution.
 - Select the hosted MySQL provider, enable encrypted snapshots/PITR, and complete an isolated restore rehearsal.
-- Configure production OAuth, ngrok domain/token, database, session secret, and credential-encryption secret.
+- Configure production OAuth, Hetzner ingress, database, session secret, and credential-encryption secret.
 - Complete real provider acceptance without test/mock evidence being used as production proof.

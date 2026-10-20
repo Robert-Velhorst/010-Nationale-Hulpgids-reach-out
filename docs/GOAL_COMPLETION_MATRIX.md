@@ -10,7 +10,7 @@ Status meanings: **Complete** means implemented with code/tests/docs appropriate
 | 003 | Critical path definition and smoke test | Complete | Desktop Chrome and Pixel-sized mobile critical-path projects pass 2/2. |
 | 004 | Architecture decision and current stack validation | Complete | Existing React/tRPC/Drizzle/Electron architecture retained and documented. |
 | 005 | Data model, ownership, and persistence design | Complete | Schema/local store ownership audited; operator-controls migration added. |
-| 006 | Configuration validation and startup guards | Complete | Hosted DB, OAuth, ngrok, session, and encryption config fail closed. |
+| 006 | Configuration validation and startup guards | Partial | Hosted DB, OAuth, session, and encryption config fail closed; Ngrok removal is proposed in an open draft PR, and Hetzner production cutover remains pending. |
 | 007 | Authentication model and session security | Complete | Hosted OAuth and loopback-only desktop identity remain isolated. |
 | 008 | Authorization and resource ownership | Complete | Protected procedures and cross-user tests cover owned resources/controls. |
 | 009 | API contract and error envelope | Complete | Typed tRPC errors and bounded generic HTTP errors documented. |

@@ -14,7 +14,6 @@ import {
   applySecurityHeaders,
   requireSameOriginForMutation,
 } from "./httpSecurity";
-import { startNgrokTunnel, stopNgrokTunnel } from "./ngrok";
 import { serveStatic, setupVite } from "./vite";
 import { handleHaiFeed } from "../integrations/haiConnector";
 
@@ -83,7 +82,7 @@ export async function startServer(
     })
   );
   // Vite is only used when explicitly requested for frontend development.
-  // Normal local, ngrok, and packaged app runs serve the built static files.
+  // Normal local and packaged app runs serve the built static files.
   if (
     process.env.NODE_ENV === "development" &&
     process.env.USE_VITE_DEV_SERVER === "true"
@@ -113,19 +112,10 @@ export async function startServer(
   console.log(
     `Server running on http://${host === "0.0.0.0" ? "localhost" : host}:${port}/`
   );
-  startNgrokTunnel(port).catch(error => {
-    console.error("[ngrok] Failed to start ngrok tunnel:", error);
-  });
-
   let closePromise: Promise<void> | null = null;
   const close = () => {
     if (closePromise) return closePromise;
     closePromise = (async () => {
-      try {
-        await stopNgrokTunnel();
-      } catch (error) {
-        console.error("[ngrok] Failed to stop tunnel cleanly:", error);
-      }
       await new Promise<void>((resolve, reject) => {
         server.close(error => (error ? reject(error) : resolve()));
       });

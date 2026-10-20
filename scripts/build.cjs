@@ -48,7 +48,6 @@ function serverBuildArgs() {
     "--format=esm",
     "--alias:@shared=./shared",
     "--outdir=dist",
-    "--external:@ngrok/ngrok",
     "--external:crawlee",
     "--external:lightningcss",
     "--external:mysql2",

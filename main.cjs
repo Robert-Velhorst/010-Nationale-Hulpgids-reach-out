@@ -165,11 +165,6 @@ function startServer() {
       process.env.CREDENTIAL_ENCRYPTION_KEY || secrets.credentialEncryptionKey,
   };
 
-  // Prevent accidental ngrok exposure from inherited shell environment.
-  delete serverEnv.NGROK_ENABLED;
-  delete serverEnv.NGROK_AUTHTOKEN;
-  delete serverEnv.NGROK_DOMAIN;
-
   if (!fs.existsSync(serverPath) || !fs.existsSync(publicDir)) {
     dialog.showErrorBox(
       "Build missing",

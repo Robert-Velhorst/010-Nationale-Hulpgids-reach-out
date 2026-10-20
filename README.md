@@ -10,7 +10,7 @@ An outreach tool for finding, matching, and contacting care professionals across
 - Lets the user review and edit messages before sending.
 - Tracks campaigns, candidates, messages, and queue status.
 - Provides an emergency stop, privacy export/delete, and redacted diagnostics.
-- Runs as a Windows desktop app or as a production web app through ngrok.
+- Runs as a Windows desktop app or as a hosted web app targeted for Hetzner.
 
 ## Run Modes
 
@@ -24,20 +24,9 @@ pnpm installer:win
 
 The `.exe` installer is created in `release/`. The installed app runs locally, stores data in the Windows user data folder, and creates local secrets on first launch.
 
-### ngrok Production Run
+### Hosted Hetzner Deployment
 
-```bash
-pnpm build
-set NGROK_AUTHTOKEN=your-ngrok-token
-set JWT_SECRET=a-long-random-secret-at-least-32-characters
-set CREDENTIAL_ENCRYPTION_KEY=a-long-random-secret-at-least-32-characters
-set DATABASE_URL=mysql://user:password@host/database
-set VITE_APP_ID=your-manus-app-id
-set OAUTH_SERVER_URL=https://your-oauth-server.example
-pnpm start:ngrok
-```
-
-Vite is not used for ngrok or end-user runs. The app serves the built files from `dist/`.
+Hetzner is the production deployment target. Review [DEPLOYMENT_TARGET.md](DEPLOYMENT_TARGET.md) before provisioning the host, reverse proxy, database, and secrets. The production Docker image serves the built files from `dist/`; Vite is used only for development.
 
 ### Local Production Run
 
@@ -58,10 +47,9 @@ Development mode uses Vite for hot reloading.
 
 ## Required Tools
 
-- Node.js 22+
+- Node.js 26.12.0 or newer
 - pnpm
 - Windows 11 for the installer target
-- ngrok account/token for public tunnel runs
 
 Server deployments also need:
 
@@ -91,8 +79,6 @@ Security:
 
 - `JWT_SECRET`
 - `CREDENTIAL_ENCRYPTION_KEY`
-- `NGROK_AUTHTOKEN`
-- `NGROK_DOMAIN`
 - `TRANSCRIPTION_AUDIO_HOST_ALLOWLIST`
 
 Resource controls:
@@ -129,7 +115,7 @@ docs/       Operator and review notes
 
 ## Security Notes
 
-- Desktop mode refuses to start ngrok because it uses local auto-login.
+- Desktop mode binds to loopback and uses local auto-login.
 - Production sessions require `JWT_SECRET`.
 - Stored platform credentials are encrypted.
 - Credential list responses do not expose stored secrets.

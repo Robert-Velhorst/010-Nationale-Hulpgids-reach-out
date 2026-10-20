@@ -14,12 +14,6 @@ function getRuntimeMode() {
   ) {
     return "local-desktop";
   }
-  if (
-    process.env.NGROK_ENABLED === "1" ||
-    process.env.NGROK_ENABLED === "true"
-  ) {
-    return "ngrok";
-  }
   if (process.env.NODE_ENV === "production") {
     return "production";
   }
