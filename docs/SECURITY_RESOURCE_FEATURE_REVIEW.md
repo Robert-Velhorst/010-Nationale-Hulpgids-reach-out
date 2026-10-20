@@ -1,5 +1,9 @@
 # Security, Resource, and Feature Review
 
+> Historical review (2026-05-24 through 2026-08-09): Ngrok-specific findings
+> describe the implementation at that time. Current source has no Ngrok
+> launcher or runtime configuration; public deployment targets Hetzner.
+
 Review dates: 2026-05-24 through 2026-08-09
 
 ## Security Findings Fixed
