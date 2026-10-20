@@ -1,7 +1,17 @@
 import express, { type Express } from "express";
+import { rateLimit } from "express-rate-limit";
 import fs from "fs";
 import { type Server } from "http";
 import path from "path";
+
+function createClientDocumentRateLimiter() {
+  return rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 1000,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+  });
+}
 
 export async function setupVite(app: Express, server: Server) {
   const viteConfigUrl = new URL("../../vite.config.ts", import.meta.url).href;
@@ -26,6 +36,8 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   app.use(vite.middlewares);
+  // Bound the fallback's disk read for requests Vite does not handle.
+  app.use(createClientDocumentRateLimiter());
   app.use(async (req, res, next) => {
     const url = req.originalUrl;
 
@@ -75,6 +87,7 @@ export function serveStatic(app: Express) {
   }));
 
   // fall through to index.html if the file doesn't exist
+  app.use(createClientDocumentRateLimiter());
   app.use((_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
