@@ -6,8 +6,6 @@ const previousEnv = {
   CREDENTIAL_ENCRYPTION_KEY: process.env.CREDENTIAL_ENCRYPTION_KEY,
   DATABASE_URL: process.env.DATABASE_URL,
   LOCAL_DESKTOP_MODE: process.env.LOCAL_DESKTOP_MODE,
-  NGROK_AUTHTOKEN: process.env.NGROK_AUTHTOKEN,
-  NGROK_ENABLED: process.env.NGROK_ENABLED,
   NODE_ENV: process.env.NODE_ENV,
   OAUTH_SERVER_URL: process.env.OAUTH_SERVER_URL,
   VITE_APP_ID: process.env.VITE_APP_ID,
@@ -51,17 +49,6 @@ describe("deployment configuration validation", () => {
     });
   });
 
-  it("fails startup when desktop auto-login and ngrok are both enabled", () => {
-    process.env.NODE_ENV = "production";
-    process.env.LOCAL_DESKTOP_MODE = "1";
-    process.env.NGROK_ENABLED = "true";
-    process.env.NGROK_AUTHTOKEN = "test-ngrok-token";
-
-    expect(() => validateDeploymentConfig()).toThrow(
-      /LOCAL_DESKTOP_MODE cannot be combined with NGROK_ENABLED/
-    );
-  });
-
   it("requires OAuth app id and HTTPS OAuth server URL for hosted production", () => {
     setHostedProductionEnv();
     delete process.env.VITE_APP_ID;
@@ -74,22 +61,4 @@ describe("deployment configuration validation", () => {
     expect(() => validateDeploymentConfig()).toThrow(/OAUTH_SERVER_URL.*HTTPS/);
   });
 
-  it("requires an ngrok auth token before hosted ngrok startup", () => {
-    setHostedProductionEnv();
-    process.env.NGROK_ENABLED = "true";
-    delete process.env.NGROK_AUTHTOKEN;
-
-    expect(() => validateDeploymentConfig()).toThrow(/NGROK_AUTHTOKEN/);
-  });
-
-  it("accepts a complete hosted ngrok deployment config", () => {
-    setHostedProductionEnv();
-    process.env.NGROK_ENABLED = "true";
-    process.env.NGROK_AUTHTOKEN = "test-ngrok-token";
-
-    expect(validateDeploymentConfig()).toEqual({
-      status: "hosted-production",
-      ngrokEnabled: true,
-    });
-  });
 });

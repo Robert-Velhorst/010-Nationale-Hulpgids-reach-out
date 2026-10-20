@@ -21,17 +21,17 @@ pnpm installer:win
 
 Install the `.exe` from `release`. Unsigned local builds may show Windows reputation warnings. Production distribution should use `pnpm installer:win:signed` with the signing certificate configured in the release environment.
 
-## Hosted/ngrok run
+## Hosted Hetzner target
 
-Set `DATABASE_URL`, `JWT_SECRET`, `CREDENTIAL_ENCRYPTION_KEY`, `VITE_APP_ID`, `OAUTH_SERVER_URL`, `NGROK_AUTHTOKEN`, and optional `NGROK_DOMAIN`, then:
+Provision Hetzner host ingress, durable MySQL, and secret values according to [DEPLOYMENT_TARGET.md](../DEPLOYMENT_TARGET.md). For the current production container:
 
 ```powershell
-pnpm build
-pnpm doctor:built
-pnpm start:ngrok
+docker compose config
+docker compose up --build -d
+docker compose ps
 ```
 
-The app must report `/api/health` HTTP 200 and `/api/readiness` HTTP 200. A health success with readiness 503 means the process is alive but must not receive traffic.
+Before routing traffic, verify `/api/health` and `/api/readiness` through the configured Hetzner reverse proxy. A health success with readiness 503 means the process is alive but must not receive traffic.
 
 ## Docker
 
@@ -43,7 +43,7 @@ docker compose up --build -d
 docker compose ps
 ```
 
-The published port binds to loopback by default. ngrok runs inside the app only when explicitly enabled.
+The published port binds to loopback by default. Keep public ingress on the Hetzner reverse proxy.
 
 ## Emergency stop
 

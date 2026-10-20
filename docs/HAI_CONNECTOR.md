@@ -16,9 +16,9 @@ $env:HAI_CONNECTOR_USER_ID="1"
 pnpm start:local
 ```
 
-For hosted or ngrok operation, `HAI_CONNECTOR_USER_ID` is required and must be
+For hosted Hetzner operation, `HAI_CONNECTOR_USER_ID` is required and must be
 the one user whose aggregate campaign context may be exported. Do not reuse the
-session, OAuth, credential-encryption, or ngrok token.
+session, OAuth, or credential-encryption token.
 
 The protected endpoint is:
 
@@ -55,9 +55,8 @@ Create an HAI connected source with:
 - permissions: `metadata,read`
 
 For Docker Desktop, exposing the proxy beyond loopback is an explicit operator
-decision. Prefer a private Docker network or a firewall-scoped host port; never
-publish this proxy through ngrok. The Reach-Out upstream endpoint remains token
-protected in every mode.
+decision. Prefer a private Docker network or a firewall-scoped host port. The
+Reach-Out upstream endpoint remains token protected in every mode.
 
 ## Trust boundary
 

@@ -3,9 +3,9 @@
 This application has two normal ways to run:
 
 - Windows desktop app for end users.
-- Production web app exposed through ngrok for shared testing or hosted use.
+- Production web app targeted for Hetzner behind a controlled reverse proxy.
 
-Vite is still available for development only. End users and ngrok runs use the built application from `dist/`.
+Vite is available for development only. Hosted and end-user runs use the built application from `dist/`.
 
 ## Windows 11 Installer
 
@@ -46,34 +46,17 @@ pnpm start:local
 
 Local data is stored in `.local-data/`, which is ignored by git.
 
-## ngrok Run
+## Hetzner Production Target
 
-For a public ngrok tunnel, build first and then run:
-
-```bash
-pnpm build
-set NGROK_AUTHTOKEN=your-ngrok-token
-set JWT_SECRET=a-long-random-secret-at-least-32-characters
-set CREDENTIAL_ENCRYPTION_KEY=a-long-random-secret-at-least-32-characters
-set DATABASE_URL=mysql://user:password@host/database
-set VITE_APP_ID=your-manus-app-id
-set OAUTH_SERVER_URL=https://your-oauth-server.example
-pnpm start:ngrok
-```
-
-Hosted production/ngrok startup validates these settings before listening and
-requires durable MySQL storage. It never falls back to the desktop JSON store.
+Hetzner is the production target. Follow [DEPLOYMENT_TARGET.md](../DEPLOYMENT_TARGET.md) for the migration and cutover requirements. The production container requires durable MySQL storage and never falls back to the desktop JSON store. It validates hosted secrets and OAuth settings before listening.
 `JWT_SECRET` and `CREDENTIAL_ENCRYPTION_KEY` must be unique long random
 values, and `OAUTH_SERVER_URL` must be an HTTPS URL that matches the configured
 Manus OAuth environment.
 
-Optional settings:
+Runtime settings:
 
-- `NGROK_DOMAIN` for a reserved ngrok domain.
 - `PORT` for a custom local port.
-- `HOST` for a custom bind host. The default is `127.0.0.1`.
-
-Do not combine `LOCAL_DESKTOP_MODE` with `NGROK_ENABLED`. The server refuses that combination because desktop mode uses automatic local authentication and must not be publicly exposed.
+- `HOST` for a custom bind host. The default is `127.0.0.1`; keep public ingress on the Hetzner reverse proxy.
 
 ## Resource Controls
 
