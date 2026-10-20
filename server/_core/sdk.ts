@@ -1,7 +1,7 @@
 import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
-import { parseCookie as parseCookieHeader } from "cookie";
+import * as Cookie from "cookie";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
@@ -19,6 +19,12 @@ import type {
   GetUserInfoWithJwtRequest,
   GetUserInfoWithJwtResponse,
 } from "./types/manusTypes";
+
+const parseCookieHeader = (
+  Cookie as unknown as {
+    parseCookie: (cookieHeader: string) => Record<string, string | undefined>;
+  }
+).parseCookie;
 // Utility function
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
