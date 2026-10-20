@@ -1,5 +1,9 @@
 # Technical Audit
 
+> Historical audit (2026-08-08 through 2026-08-09): Ngrok was present in that
+> snapshot. The current source has no Ngrok launcher or runtime configuration;
+> public deployment targets Hetzner. The audit below records prior behavior.
+
 ## Scope and baseline
 
 Audit dates: 2026-08-08 through 2026-08-09. Starting branch: `codex/data-quality-overview`. Starting commit: `bdd1c01fea575c22a40d9cc58d9832237eb94dff`. The branch began clean and tracked `origin/codex/data-quality-overview`; `origin/main` was `6ae40a242344c79ec221f91c21fcc48d1d09e662`.
