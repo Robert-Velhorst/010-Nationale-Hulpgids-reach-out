@@ -26,7 +26,7 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   app.use(vite.middlewares);
-  app.use("*", async (req, res, next) => {
+  app.use(async (req, res, next) => {
     const url = req.originalUrl;
 
     try {
@@ -62,7 +62,7 @@ export function serveStatic(app: Express) {
     console.error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
-    app.use("*", (_req, res) => {
+    app.use((_req, res) => {
       res.status(503).send("The application has not been built yet. Run the build command first.");
     });
     return;
@@ -75,7 +75,7 @@ export function serveStatic(app: Express) {
   }));
 
   // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
+  app.use((_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
