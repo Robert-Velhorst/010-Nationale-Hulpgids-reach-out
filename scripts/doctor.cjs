@@ -15,19 +15,13 @@ function check(name, ok, level, detail) {
   checks.push({ name, ok: Boolean(ok), level, detail });
 }
 
-const nodeVersion = process.versions.node.split(".").map(Number);
-const minimumNodeVersion = [26, 12, 0];
-const meetsMinimumNodeVersion =
-  nodeVersion[0] > minimumNodeVersion[0] ||
-  (nodeVersion[0] === minimumNodeVersion[0] &&
-    (nodeVersion[1] > minimumNodeVersion[1] ||
-      (nodeVersion[1] === minimumNodeVersion[1] &&
-        nodeVersion[2] >= minimumNodeVersion[2])));
+const { supportedNodeRuntime } = require("./node-runtime-policy.cjs");
+const meetsMinimumNodeVersion = supportedNodeRuntime(process.versions.node);
 check(
   "node-version",
   meetsMinimumNodeVersion,
   "error",
-  `Node ${process.versions.node}; 26.12.0+ required`
+  `Node ${process.versions.node}; 24.22.1+ within 24.x or 26.12.1+ within 26.x required`
 );
 check(
   "lockfile",

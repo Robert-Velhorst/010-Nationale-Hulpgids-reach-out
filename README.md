@@ -47,8 +47,8 @@ Development mode uses Vite for hot reloading.
 
 ## Required Tools
 
-- Node.js 26.12.0 or newer
-- pnpm
+- Node.js 24.22.1 within 24.x or 26.12.1 within 26.x (hosted target: 26.12.1)
+- pnpm 12.14.0
 - Windows 11 for the installer target
 
 Server deployments also need:
@@ -135,3 +135,7 @@ pnpm restore:local -- C:\Backups\ReachOut --confirm
 ## License
 
 `package.json` currently declares MIT while earlier project documentation used proprietary language. The repository owner must resolve that legal metadata before public distribution.
+
+## Current stable refresh and release checks
+
+See [the October 2026 upgrade record](docs/STABLE_DEPENDENCIES_2026-10.md) for exact versions, compatibility checks, the strict packaged Electron/Node release gate and remaining operator acceptance. A passing source build does not establish a patched embedded desktop runtime or a production database migration.

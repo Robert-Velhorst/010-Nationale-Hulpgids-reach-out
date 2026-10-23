@@ -117,3 +117,6 @@ local-store.json
 .e2e-local-data/
 .test-local-data/
 security-scans/
+
+# Local verification reports
+artifacts/
