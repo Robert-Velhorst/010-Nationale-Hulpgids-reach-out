@@ -1,6 +1,6 @@
 FROM node:26.12.1-trixie-slim@sha256:36793bcbb160a6a16cede1e62b93f84e26b78a972a8a4c0b879c1c12f22761ec AS builder
 WORKDIR /app
-RUN npm install --global npm@12.2.1 pnpm@12.14.0
+RUN npm install --global npm@12.2.1 pnpm@12.15.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY patches ./patches
 RUN CI=true pnpm install --frozen-lockfile --ignore-scripts && pnpm audit --audit-level=low
