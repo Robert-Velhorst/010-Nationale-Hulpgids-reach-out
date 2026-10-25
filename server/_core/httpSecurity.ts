@@ -22,8 +22,8 @@ export const applySecurityHeaders: RequestHandler = (req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
 
-  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  if (req.secure || forwardedProto === "https") {
+  // Express applies the configured trusted-proxy policy to this value.
+  if (req.secure) {
     res.setHeader(
       "Strict-Transport-Security",
       "max-age=31536000; includeSubDomains"
@@ -47,12 +47,10 @@ export const requireSameOriginForMutation: RequestHandler = (req, res, next) => 
     return;
   }
 
-  const acceptedHosts = new Set(
-    [req.get("host"), req.get("x-forwarded-host")?.split(",")[0]?.trim()]
-      .filter((value): value is string => Boolean(value))
-      .map(value => value.toLowerCase())
-  );
-  if (!acceptedHosts.has(originHost)) {
+  // req.host preserves the port and only accepts forwarded hosts through
+  // Express's trusted-proxy decision, matching the OAuth redirect origin.
+  const acceptedHost = req.host?.toLowerCase();
+  if (!acceptedHost || originHost !== acceptedHost) {
     res.status(403).json({ error: "Cross-origin state change blocked." });
     return;
   }
