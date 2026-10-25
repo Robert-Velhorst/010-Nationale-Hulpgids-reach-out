@@ -27,6 +27,7 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = github-hosted
           mkdir -p "$RUNNER_TEMP/hulpgids-codeql/evidence"
           git rev-parse HEAD > "$RUNNER_TEMP/hulpgids-codeql/evidence/tested-head.txt"
+          printf '%s\n' "$GITHUB_WORKSPACE" > "$RUNNER_TEMP/hulpgids-codeql/evidence/source-root.txt"
           git rev-parse HEAD^{tree} > "$RUNNER_TEMP/hulpgids-codeql/evidence/tested-tree.txt"
           git ls-files -z | xargs -0 sha256sum > "$RUNNER_TEMP/hulpgids-codeql/evidence/source-sha256.txt"
           curl --fail --location --retry 3 --output "$RUNNER_TEMP/hulpgids-codeql/bundle.tar.zst" \
@@ -69,15 +70,20 @@ jobs:
               digest, path = line.split('  ', 1)
               if path.endswith(('.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts')):
                   expected[path] = digest
+          source_root = (folder / 'source-root.txt').read_text().strip()
+          assert source_root == os.environ['GITHUB_WORKSPACE']
+          assert Path(source_root).resolve() == Path.cwd().resolve()
+          prefix = source_root.lstrip('/') + '/'
           missing = []
           with zipfile.ZipFile(folder / 'extracted-source.zip') as source:
+              names = source.namelist()
               for path, digest in expected.items():
-                  matches = [name for name in source.namelist() if name.endswith('/' + path)]
-                  if not matches:
+                  exact_path = prefix + path
+                  if exact_path not in names:
                       missing.append(path)
                       continue
-                  assert len(matches) == 1
-                  assert hashlib.sha256(source.read(matches[0])).hexdigest() == digest
+                  assert names.count(exact_path) == 1
+                  assert hashlib.sha256(source.read(exact_path)).hexdigest() == digest
           assert not missing, 'Tracked source missing from the extraction archive: ' + repr(missing)
           findings = run.get('results', [])
           summary = {'scope': 'complete source; no PR diff restriction', 'rules': sorted(rules),
