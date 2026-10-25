@@ -1,5 +1,6 @@
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import type { Express, Request, Response } from "express";
+import { rateLimit } from "express-rate-limit";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { ENV } from "./env";
@@ -16,14 +17,23 @@ function getQueryParam(req: Request, key: string): string | undefined {
 }
 
 export function registerOAuthRoutes(app: Express) {
-  app.get("/api/oauth/login", (req: Request, res: Response) => {
+  // Shared per-client, per-process budget for login and callback work.
+  const oauthRequestLimit = rateLimit({
+    windowMs: 60_000,
+    limit: 60,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: "Too many OAuth requests. Please try again in a minute." },
+  });
+
+  app.get("/api/oauth/login", oauthRequestLimit, (req: Request, res: Response) => {
     try {
       if (!ENV.oAuthPortalUrl || !ENV.appId) {
         res.status(500).json({ error: "OAuth login is not configured" });
         return;
       }
 
-      const expectedHost = req.get("host");
+      const expectedHost = req.host;
       if (!expectedHost) {
         throw new OAuthStateValidationError("Missing login host");
       }
@@ -49,7 +59,7 @@ export function registerOAuthRoutes(app: Express) {
     }
   });
 
-  app.get("/api/oauth/callback", async (req: Request, res: Response) => {
+  app.get("/api/oauth/callback", oauthRequestLimit, async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
     const state = getQueryParam(req, "state");
 
@@ -62,7 +72,7 @@ export function registerOAuthRoutes(app: Express) {
       const redirectUri = parseOAuthRedirectUriFromState(state, {
         requireSigned: true,
       });
-      const expectedHost = req.get("host");
+      const expectedHost = req.host;
       if (!expectedHost) {
         throw new OAuthStateValidationError("Missing callback host");
       }
