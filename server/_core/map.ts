@@ -8,6 +8,7 @@
  */
 
 import { ENV } from "./env";
+import { PROVIDER_DEADLINE_MS, ProviderResponseError, readProviderJson } from "./providerResponse";
 
 // ============================================================================
 // Configuration
@@ -71,22 +72,21 @@ export async function makeRequest<T = unknown>(
     }
   });
 
-  const response = await fetch(url.toString(), {
-    method: options.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Google Maps API request failed (${response.status} ${response.statusText}): ${errorText}`
-    );
+  try {
+    const response = await fetch(url.toString(), {
+      method: options.method || "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      redirect: "error",
+      signal: AbortSignal.timeout(PROVIDER_DEADLINE_MS),
+    });
+    return await readProviderJson<T>(response, "Google Maps");
+  } catch (error) {
+    if (error instanceof ProviderResponseError) throw error;
+    throw new Error("Google Maps request could not be completed");
   }
-
-  return (await response.json()) as T;
 }
 
 // ============================================================================

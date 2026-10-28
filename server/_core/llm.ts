@@ -1,4 +1,5 @@
 import { ENV } from "./env";
+import { PROVIDER_DEADLINE_MS, ProviderResponseError, readProviderJson } from "./providerResponse";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -312,21 +313,20 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+  try {
+    const response = await fetch(resolveApiUrl(), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${ENV.forgeApiKey}`,
+      },
+      body: JSON.stringify(payload),
+      redirect: "error",
+      signal: AbortSignal.timeout(PROVIDER_DEADLINE_MS),
+    });
+    return await readProviderJson<InvokeResult>(response, "LLM");
+  } catch (error) {
+    if (error instanceof ProviderResponseError) throw error;
+    throw new Error("LLM request could not be completed");
   }
-
-  return (await response.json()) as InvokeResult;
 }
