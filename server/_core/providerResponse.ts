@@ -1,20 +1,14 @@
 /** Bound decoded provider responses and keep provider failure bodies private. */
 const MAX_PROVIDER_JSON_BYTES = 8 * 1024 * 1024;
-const PROVIDER_DEADLINE_MS = 30_000;
+export const PROVIDER_DEADLINE_MS = 30_000;
 
-class ProviderResponseError extends Error {}
+export class ProviderResponseError extends Error {}
 
-export async function fetchProviderJson<T>(
-  url: string,
-  init: RequestInit,
+export async function readProviderJson<T>(
+  response: Response,
   provider: "Google Maps" | "LLM"
 ): Promise<T> {
   try {
-    const response = await fetch(url, {
-      ...init,
-      redirect: "error",
-      signal: AbortSignal.timeout(PROVIDER_DEADLINE_MS),
-    });
     if (!response.ok) {
       void response.body?.cancel().catch(() => {});
       throw new ProviderResponseError(`${provider} request failed (HTTP ${response.status})`);
