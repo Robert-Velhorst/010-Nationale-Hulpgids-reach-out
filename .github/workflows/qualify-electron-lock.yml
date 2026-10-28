@@ -1,0 +1,49 @@
+name: Hulpgids current Electron normal lock
+on:
+  push:
+    branches:
+      - qualify/hulpgids-electron-45-1-20261028
+    paths:
+      - .github/scripts/qualify-electron-lock.py
+      - .github/workflows/qualify-electron-lock.yml
+permissions:
+  contents: read
+concurrency:
+  group: hulpgids-electron-lock-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+        with:
+          version: 12.15.0
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '26.12.1'
+      - name: Prepare only the current mature public Electron declaration
+        run: python .github/scripts/qualify-electron-lock.py prepare
+      - name: Verify actual strict policy before normal resolution
+        run: node .github/scripts/verify-pnpm-policy.mjs before
+      - name: Generate the complete lock normally with unchanged strictness
+        run: python .github/scripts/qualify-electron-lock.py resolve
+      - name: Verify resolution did not rewrite or exempt the policy
+        if: always()
+        run: node .github/scripts/verify-pnpm-policy.mjs after
+      - name: Preserve original source and exact generated manifest and lock
+        if: always()
+        run: python .github/scripts/qualify-electron-lock.py collect
+      - name: Require the original unfiltered audit gate
+        run: pnpm audit --audit-level=low --json > "$RUNNER_TEMP/hulpgids-electron-lock/audit.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: hulpgids-electron-lock-${{ github.run_id }}
+          path: ${{ runner.temp }}/hulpgids-electron-lock
+          if-no-files-found: error
+          retention-days: 14
