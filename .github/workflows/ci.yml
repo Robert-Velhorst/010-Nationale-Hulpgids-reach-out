@@ -23,6 +23,8 @@ jobs:
         with:
           node-version: 26.12.1
           cache: pnpm
+      - name: Verify policy output boundary
+        run: node .github/scripts/test-pnpm-policy-boundary.mjs
       - name: Verify effective dependency policy before installation
         run: node .github/scripts/verify-pnpm-policy.mjs before
       - run: pnpm install --frozen-lockfile --ignore-scripts
@@ -33,7 +35,7 @@ jobs:
         if: always()
         with:
           name: pnpm-policy-${{ runner.os }}-${{ github.job }}
-          path: ${{ runner.temp }}/hulpgids-pnpm-policy
+          path: artifacts/pnpm-policy
           if-no-files-found: warn
           retention-days: 14
       - run: pnpm audit --audit-level=low
@@ -56,6 +58,8 @@ jobs:
         with:
           node-version: 26.12.1
           cache: pnpm
+      - name: Verify policy output boundary
+        run: node .github/scripts/test-pnpm-policy-boundary.mjs
       - name: Verify effective dependency policy before installation
         run: node .github/scripts/verify-pnpm-policy.mjs before
       - run: pnpm install --frozen-lockfile --ignore-scripts
@@ -66,7 +70,7 @@ jobs:
         if: always()
         with:
           name: pnpm-policy-${{ runner.os }}-${{ github.job }}
-          path: ${{ runner.temp }}/hulpgids-pnpm-policy
+          path: artifacts/pnpm-policy
           if-no-files-found: warn
           retention-days: 14
       - run: pnpm test:e2e

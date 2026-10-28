@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
-import path from 'node:path';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'This check runs on the owned CI worker');
 assert.equal(process.env.GITHUB_REPOSITORY, 'Robert-Velhorst/010-Nationale-Hulpgids-reach-out');
@@ -42,13 +41,15 @@ const record = {
   workspaceSha256: createHash('sha256').update(readFileSync('pnpm-workspace.yaml')).digest('hex'),
   policy,
 };
-const directory = path.join(process.env.RUNNER_TEMP, 'hulpgids-pnpm-policy');
+const directory = new URL('../../artifacts/pnpm-policy/', import.meta.url);
+const beforeFile = new URL('before.json', directory);
+const afterFile = new URL('after.json', directory);
 mkdirSync(directory, {recursive: true});
-writeFileSync(path.join(directory, `${phase}.json`), `${JSON.stringify(record, null, 2)}\n`);
+writeFileSync(phase === 'before' ? beforeFile : afterFile, `${JSON.stringify(record, null, 2)}\n`);
 assert.deepEqual(policy, expected, 'The effective policy must match every explicit requirement');
 assert.equal(record.actualPnpm, declared, 'CI must use the package manager declared by this source');
 if (phase === 'after') {
-  const before = JSON.parse(readFileSync(path.join(directory, 'before.json'), 'utf8'));
+  const before = JSON.parse(readFileSync(beforeFile, 'utf8'));
   assert.equal(record.workspaceSha256, before.workspaceSha256, 'Installation must not rewrite the policy');
   assert.deepEqual(record.policy, before.policy);
   assert.equal(record.actualPnpm, before.actualPnpm);
