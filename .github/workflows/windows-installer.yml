@@ -9,7 +9,23 @@ permissions:
   contents: read
 
 jobs:
+  pnpm-stability-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: 3.13.16
+      - name: Install hash-bound YAML parser
+        run: >-
+          python -m pip install --require-hashes --only-binary=:all: -r .github/qualification/yaml-policy-requirements.txt
+      - name: Reject prerelease package records before installation
+        run: python .github/qualification/strict-yaml-pnpm-guard.py
+
   installer:
+    needs: pnpm-stability-policy
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
